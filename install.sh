@@ -1,17 +1,17 @@
 #!/bin/bash
 
 # ==============================================================================
-# == INSTALADOR PARA BOT-MKW PRO (v4 - Descarga por ZIP) =======================
+# == INSTALADOR PARA BOT-MKW PRO (v5 - Descarga con cURL) ======================
 # ==============================================================================
 #
-# Este script automatiza la instalación descargando el proyecto como un ZIP
-# para máxima compatibilidad, sin depender de un 'git clone' funcional.
+# Este script automatiza la instalación usando cURL para la descarga,
+# buscando una mayor compatibilidad con distintas redes.
 #
 # ==============================================================================
 
 # --- Variables de configuración ---
 ZIP_URL="https://github.com/jarap/bot-mkw-pro/archive/refs/heads/main.zip"
-PROJECT_DIR_FROM_ZIP="bot-mkw-pro-main" # El nombre de la carpeta que está dentro del ZIP
+PROJECT_DIR_FROM_ZIP="bot-mkw-pro-main"
 PROJECT_DIR="mkw-support"
 PM2_APP_NAME="bot-mkw"
 
@@ -20,14 +20,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 RED='\033[0;31m'
-NC='\033[0m' # Sin color
+NC='\033[0m'
 
 # --- Inicio del Script ---
 echo -e "${BLUE}=========================================${NC}"
 echo -e "${BLUE}== Iniciando la instalación de Bot-MKW ==${NC}"
 echo -e "${BLUE}=========================================${NC}\n"
 
-# --- 1. Dependencias del sistema (Node, PM2, unzip) ---
+# --- 1. Dependencias del sistema ---
 echo -e "${YELLOW}---> Verificando dependencias del sistema...${NC}"
 # Node.js
 if ! command -v node &> /dev/null; then
@@ -48,7 +48,7 @@ else
     echo -e "${GREEN}PM2 ya está instalado.${NC}"
 fi
 
-# Unzip (NUEVO)
+# Unzip
 if ! command -v unzip &> /dev/null; then
     echo "Utilidad 'unzip' no está instalada. Instalando..."
     apt-get update && apt-get install unzip -y
@@ -62,22 +62,16 @@ echo -e "${YELLOW}---> Descargando el proyecto como ZIP...${NC}"
 if [ -d "$PROJECT_DIR" ]; then
     echo "El directorio del proyecto '$PROJECT_DIR' ya existe. Omitiendo descarga."
 else
-    # Descargar el archivo ZIP usando wget
-    wget -O bot_project.zip "$ZIP_URL"
+    # Descargar el archivo ZIP usando cURL
+    curl -L -o bot_project.zip "$ZIP_URL"
     
-    # Descomprimir el archivo
     unzip -q bot_project.zip
-    
-    # Renombrar la carpeta descomprimida al nombre correcto
     mv "$PROJECT_DIR_FROM_ZIP" "$PROJECT_DIR"
-    
-    # Limpiar el archivo ZIP descargado
     rm bot_project.zip
     
     echo -e "${GREEN}Proyecto descargado y descomprimido con éxito.${NC}"
 fi
 
-# Verificación final antes de continuar
 if [ ! -d "$PROJECT_DIR" ]; then
     echo -e "${RED}Error: La descarga o descompresión del proyecto falló. No se puede continuar.${NC}"
     exit 1
@@ -127,4 +121,3 @@ echo -e "${YELLOW}PASO FINAL IMPORTANTE:${NC}"
 echo -e "Para que el bot se inicie automáticamente si el servidor se reinicia,"
 echo -e "ejecuta el siguiente comando que PM2 ha generado y sigue las instrucciones:"
 pm2 startup
-
