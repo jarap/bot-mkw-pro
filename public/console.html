@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consola en Vivo</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        /* Estilos específicos para la consola dentro del iframe */
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+
+        body {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Fira Code', 'Menlo', 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+            margin: 0;
+            padding: 15px;
+            word-break: break-all;
+        }
+
+        .log-entry {
+            margin: 0;
+            padding: 3px 5px;
+            line-height: 1.5;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-radius: 3px;
+        }
+        
+        .log-entry:hover {
+            background-color: #2a2d2e;
+        }
+
+        .icon { font-size: 0.8em; }
+        .timestamp { color: #6a9955; font-weight: 500; }
+        .message { white-space: pre-wrap; }
+
+        .log-info .icon { color: #569cd6; }
+        .log-log .icon { color: #9cdcfe; }
+        .log-warn .icon { color: #ce9178; }
+        .log-error .icon { color: #f44747; }
+        
+        .log-info .message { color: #569cd6; }
+        .log-log .message { color: #d4d4d4; }
+        .log-warn .message { color: #ce9178; }
+        .log-error .message { color: #f44747; font-weight: 500; }
+    </style>
+</head>
+<body>
+    <div class="log-entry log-info">
+        <span class="message">Esperando logs del servidor...</span>
+    </div>
+
+    <script>
+        let initialLogCleared = false;
+
+        // Escuchamos los mensajes que nos envía la página principal (mkwap.html)
+        window.addEventListener('message', (event) => {
+            // Por seguridad, podríamos comprobar el origen: if (event.origin !== 'http://tu-dominio.com') return;
+            
+            if (!initialLogCleared) {
+                document.body.innerHTML = ''; // Limpiamos el mensaje inicial
+                initialLogCleared = true;
+            }
+
+            const { level, message } = event.data;
+            addLogEntry(level, message);
+        });
+
+        function addLogEntry(level, message) {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${level}`;
+
+            const iconSpan = document.createElement('span');
+            iconSpan.className = 'icon';
+            const icons = {
+                'log': 'fas fa-info-circle',
+                'warn': 'fas fa-exclamation-triangle',
+                'error': 'fas fa-times-circle',
+                'info': 'fas fa-bell'
+            };
+            iconSpan.innerHTML = `<i class="${icons[level] || 'fas fa-angle-right'}"></i>`;
+
+            const timestampSpan = document.createElement('span');
+            timestampSpan.className = 'timestamp';
+            timestampSpan.textContent = `[${new Date().toLocaleTimeString()}]`;
+
+            const messageSpan = document.createElement('span');
+            messageSpan.className = 'message';
+            messageSpan.textContent = message.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, '');
+
+            logEntry.appendChild(iconSpan);
+            logEntry.appendChild(timestampSpan);
+            logEntry.appendChild(messageSpan);
+            
+            document.body.appendChild(logEntry);
+            // Auto-scroll al fondo
+            window.scrollTo(0, document.body.scrollHeight);
+        }
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MKW-AP - Panel de Control</title>
+    <!-- Asegúrate de que la ruta a styles.css sea correcta -->
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+</head>
+<body>
+    <div class="panel-container">
+        <header>
+            <h1><b>MKW</b> WhatsApp Bot</h1>
+            <a href="/logout">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Cerrar Sesión</span>
+            </a>
+        </header>
+        
+        <main>
+            <div class="card card-full">
+                <div class="card-header">
+                    <span class="icon"><i class="fas fa-wifi"></i></span>
+                    <h2>Estado del Bot</h2>
+                </div>
+                <p id="status-text" class="status-disconnected">Desconectado</p>
+            </div>
+
+            <div class="card card-full" id="qr-container">
+                <div class="card-header">
+                    <span class="icon"><i class="fas fa-qrcode"></i></span>
+                    <h2>Código QR</h2>
+                </div>
+                <p>Escanea el código con tu WhatsApp para conectar el bot.</p>
+                <img id="qr-image" src="" alt="Código QR aparecerá aquí">
+            </div>
+
+            <div class="card card-full actions-card">
+                 <div class="card-header">
+                    <span class="icon"><i class="fas fa-cogs"></i></span>
+                    <h2>Acciones</h2>
+                </div>
+                <div class="button-group">
+                    <button id="connect-btn"><i class="fas fa-play-circle"></i> Conectar</button>
+                    <button id="disconnect-btn"><i class="fas fa-stop-circle"></i> Desconectar</button>
+                </div>
+            </div>
+
+            <!-- He añadido la clase 'console-card' para un mejor control del estilo -->
+            <div class="card card-full console-card">
+                <div class="card-header">
+                    <span class="icon"><i class="fas fa-terminal"></i></span>
+                    <h2>Consola en Vivo</h2>
+                </div>
+                <!-- El iframe ahora se expandirá para llenar el espacio de la tarjeta -->
+                <iframe id="log-iframe" src="console.html" class="log-viewer-iframe"></iframe>
+            </div>
+        </main>
+    </div>
+
+    <!-- Asegúrate de que la ruta a client.js sea correcta -->
+    <script src="client.js"></script>
+</body>
+</html>
+

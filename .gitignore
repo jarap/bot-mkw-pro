@@ -1,0 +1,19 @@
+# Archivo .gitignore para Bot-MKW Pro
+
+# Dependencias de Node.js (se instalan con 'npm install')
+node_modules/
+
+# Archivos de sesión de WhatsApp-Web.js
+# ¡Contiene información sensible de la sesión!
+.wwebjs_auth/
+
+# Archivo de usuarios con contraseñas
+users.json
+
+# Logs de PM2 (si se generan localmente)
+*.log
+logs/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
