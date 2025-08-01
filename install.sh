@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==============================================================================
-# == INSTALADOR PARA BOT-MKW PRO (v6 - Generación Automática de Token) =========
+# == INSTALADOR AUTOMÁTICO PARA BOT-MKW PRO (v7 - Orden Corregido) ==============
 # ==============================================================================
 #
 # Este script instala el bot, genera un token de API único y muestra las
@@ -20,6 +20,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 # --- Inicio del Script ---
@@ -27,14 +28,13 @@ echo -e "${BLUE}=========================================${NC}"
 echo -e "${BLUE}== Iniciando la instalación de Bot-MKW ==${NC}"
 echo -e "${BLUE}=========================================${NC}\n"
 
-# --- 1. Generación de Token de API (NUEVO) ---
+# --- 1. Generación de Token de API ---
 echo -e "${YELLOW}---> Generando un nuevo token de API seguro...${NC}"
 NEW_API_TOKEN=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 32 | head -n 1)
 echo -e "${GREEN}Token generado con éxito.${NC}\n"
 
 # --- 2. Dependencias del sistema ---
 echo -e "${YELLOW}---> Verificando dependencias del sistema...${NC}"
-# Node.js, PM2 y Unzip
 if ! command -v node &>/dev/null || ! command -v pm2 &>/dev/null || ! command -v unzip &>/dev/null; then
     echo "Faltan dependencias. Intentando instalarlas..."
     apt-get update &>/dev/null && apt-get install -y unzip &>/dev/null
@@ -72,7 +72,7 @@ fi
 cd "$PROJECT_DIR"
 echo ""
 
-# --- 4. Inyección del Token en el Archivo de API (NUEVO) ---
+# --- 4. Inyección del Token en el Archivo de API ---
 echo -e "${YELLOW}---> Configurando el nuevo token en la API...${NC}"
 sed -i "s/const API_TOKEN = '.*';/const API_TOKEN = '$NEW_API_TOKEN';/" "modules/mikrowispApi.js"
 echo -e "${GREEN}Token inyectado correctamente.${NC}\n"
@@ -105,11 +105,18 @@ pm2 start app.js --name "$PM2_APP_NAME"
 pm2 save
 echo ""
 
-# --- 8. Mensaje Final con Instrucciones (NUEVO) ---
+# --- 8. Configuración del Inicio Automático (SECCIÓN MODIFICADA) ---
+echo -e "${YELLOW}---> Generando comando de inicio automático...${NC}"
+echo -e "Para que el bot se inicie automáticamente si el servidor se reinicia,"
+echo -e "ejecuta el siguiente comando que PM2 ha generado y sigue las instrucciones:"
+pm2 startup
+echo ""
+
+# --- 9. Mensaje Final con Instrucciones (SECCIÓN MODIFICADA) ---
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 echo -e "${CYAN}======================================================================${NC}"
-echo -e "${GREEN}            ✅ ¡INSTALACIÓN COMPLETADA CON ÉXITO! ✅            ${NC}"
+echo -e "${GREEN}            ✅ ¡INSTALACIÓN COMPLETADA! ✅            ${NC}"
 echo -e "${CYAN}======================================================================${NC}"
 echo ""
 echo -e "➡️  **Panel de Control Web:**"
@@ -136,8 +143,3 @@ echo ""
 echo -e "    Y no olvides marcar la opción **'Activar Gateway'**."
 echo ""
 echo -e "${CYAN}======================================================================${NC}"
-echo ""
-echo -e "${YELLOW}PASO FINAL IMPORTANTE:${NC}"
-echo -e "Para que el bot se inicie automáticamente si el servidor se reinicia,"
-echo -e "ejecuta el siguiente comando que PM2 ha generado y sigue sus instrucciones:"
-pm2 startup
