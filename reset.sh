@@ -22,3 +22,5 @@ echo "----------------------------------------"
 
 # Comando para mostrar los logs
 pm2 logs $PROCESS_NAME
+
+
