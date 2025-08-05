@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MKW-AP - Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <img src="https://m.ultrawifi.com.ar/admin/images/logo.png" alt="Logo" class="logo">
+                <h1 class="logo-text">MKW Bot</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <h3>General</h3>
+                <ul>
+                    <li class="active"><a href="#" data-target="dashboard"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a></li>
+                    <li><a href="#" data-target="sessions"><i class="fas fa-headset"></i><span>Sesiones Activas</span></a></li>
+                    <li><a href="#" data-target="history"><i class="fas fa-history"></i><span>Historial de Tickets</span></a></li>
+                </ul>
+                
+                <h3>Herramientas</h3>
+                <ul>
+                    <li><a href="#" data-target="tools"><i class="fas fa-tools"></i><span>Herramientas</span></a></li>
+                </ul>
+
+                <!-- Menú de Ajustes al final -->
+                <h3>Configuración</h3>
+                <ul>
+                    <li><a href="#" data-target="ajustes"><i class="fas fa-cog"></i><span>Ajustes</span></a></li>
+                </ul>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/logout" class="logout-button">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Cerrar Sesión</span>
+                </a>
+            </div>
+        </aside>
+
+        <div class="main-wrapper">
+            <header class="main-header">
+                <div class="header-left">
+                    <button class="menu-toggle" id="menu-toggle-btn"><i class="fas fa-bars"></i></button>
+                    <div class="search-bar">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-ticket-input" placeholder="Buscar ticket, cliente...">
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-icon"><i class="fas fa-bell"></i><span class="notification-dot"></span></button>
+                    <button class="header-icon"><i class="fas fa-envelope"></i></button>
+                    <div class="user-profile">
+                        <img src="https://i.pravatar.cc/150?u=admin" alt="Admin">
+                        <div class="user-info">
+                            <span class="user-name">Admin</span>
+                            <span class="user-role">Super Admin</span>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="main-content">
+                <div id="dashboard" class="main-section active">
+                    <div class="kpi-grid">
+                        <div class="card kpi-card bg-blue">
+                            <div class="kpi-icon"><i class="fas fa-power-off"></i></div>
+                            <div class="kpi-info">
+                                <span class="kpi-title">Estado del Bot</span>
+                                <p id="status-text" class="kpi-value">Desconectado</p>
+                            </div>
+                        </div>
+                        <div class="card kpi-card bg-green clickable-kpi" data-target-tab="history" data-filter="open">
+                            <div class="kpi-icon"><i class="fas fa-ticket-alt"></i></div>
+                            <div class="kpi-info">
+                                <span class="kpi-title">Tickets Abiertos</span>
+                                <p id="open-tickets-value" class="kpi-value">0</p>
+                            </div>
+                        </div>
+                        <div class="card kpi-card bg-orange">
+                            <div class="kpi-icon"><i class="fas fa-users"></i></div>
+                            <div class="kpi-info">
+                                <span class="kpi-title">Clientes Atendidos</span>
+                                <p id="unique-clients-value" class="kpi-value">0</p>
+                            </div>
+                        </div>
+                        <div class="card kpi-card bg-red">
+                            <div class="kpi-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="kpi-info">
+                                <span class="kpi-title">Alertas del Sistema</span>
+                                <p class="kpi-value">2</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="card">
+                            <div class="card-header"><h3>Tickets por Estado</h3></div>
+                            <div class="card-body chart-container">
+                                <canvas id="statusChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3>Análisis de Sentimiento</h3></div>
+                            <div class="card-body chart-container">
+                                <canvas id="sentimentChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="main-chart-grid">
+                        <div class="card">
+                            <div class="card-header"><h3>Consola en Vivo</h3></div>
+                            <div class="card-body"><iframe id="log-iframe" src="console.html" class="log-viewer-iframe"></iframe></div>
+                        </div>
+                        <div class="card" id="qr-card" style="display: none;">
+                            <div class="card-header"><h3>Código QR de Conexión</h3></div>
+                            <div class="card-body qr-body">
+                                <div id="qr-container">
+                                    <p>Escanea para conectar el bot.</p>
+                                    <img id="qr-image" src="" alt="Código QR">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Nueva página principal de Ajustes -->
+                <div id="ajustes" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Ajustes del Bot</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="settings-grid">
+                                <a href="#" class="settings-card" data-target="planes">
+                                    <div class="settings-icon"><i class="fas fa-wifi"></i></div>
+                                    <span>Planes de Internet</span>
+                                </a>
+                                <a href="#" class="settings-card" data-target="promociones">
+                                    <div class="settings-icon"><i class="fas fa-tags"></i></div>
+                                    <span>Promociones</span>
+                                </a>
+                                <a href="#" class="settings-card" data-target="faq">
+                                    <div class="settings-icon"><i class="fas fa-question-circle"></i></div>
+                                    <span>Preguntas Frecuentes</span>
+                                </a>
+                                <a href="#" class="settings-card" data-target="configuracion">
+                                    <div class="settings-icon"><i class="fas fa-sliders"></i></div>
+                                    <span>Ajustes Generales</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="sessions" class="main-section">
+                    <div class="card">
+                        <div class="card-header"><h3>Sesiones de Soporte Activas</h3></div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Cliente</th><th>Agente Asignado</th><th>Estado</th><th>Tiempo Activo</th><th>Última Actividad</th></tr></thead>
+                                <tbody id="sessions-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="history" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Historial de Tickets Recientes</h3>
+                            <div class="filter-controls" id="ticket-filter-buttons">
+                                <button class="filter-btn active" data-status="all">Todos</button>
+                                <button class="filter-btn" data-status="Pendiente">Pendiente</button>
+                                <button class="filter-btn" data-status="En Progreso">En Progreso</button>
+                                <button class="filter-btn" data-status="Cerrado">Cerrado</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Fecha</th><th>Cliente</th><th>Agente Asignado</th><th>Estado</th><th>Sentimiento</th><th>Acciones</th></tr></thead>
+                                <tbody id="tickets-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="planes" class="main-section">
+                    <div class="card">
+                        <div class="card-header"><h3>Planes de Internet</h3><button class="action-btn-small" id="add-plan-btn"><i class="fas fa-plus"></i> Añadir Plan</button></div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Nombre</th><th>Precio</th><th>Velocidad (Bajada/Subida)</th><th>Ideal Para</th><th>Acciones</th></tr></thead>
+                                <tbody id="planes-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="promociones" class="main-section">
+                     <div class="card">
+                        <div class="card-header"><h3>Promociones Especiales</h3><button class="action-btn-small" id="add-promo-btn"><i class="fas fa-plus"></i> Añadir Promoción</button></div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Nombre</th><th>Descripción</th><th>Estado</th><th>Validez</th><th>Acciones</th></tr></thead>
+                                <tbody id="promos-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="faq" class="main-section">
+                     <div class="card">
+                        <div class="card-header"><h3>Preguntas Frecuentes</h3><button class="action-btn-small" id="add-faq-btn"><i class="fas fa-plus"></i> Añadir Pregunta</button></div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Pregunta</th><th>Respuesta</th><th>Acciones</th></tr></thead>
+                                <tbody id="faq-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="configuracion" class="main-section">
+                    <div class="card">
+                        <div class="card-header"><h3>Configuración General de Ventas</h3></div>
+                        <div class="card-body">
+                            <form id="config-form" class="modern-form"></form>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="tools" class="main-section">
+                    <div class="tools-grid">
+                        <div class="card">
+                            <div class="card-header"><h3>Enviar Mensaje Manual</h3></div>
+                            <div class="card-body">
+                                <form id="send-message-form" class="modern-form">
+                                    <input type="text" id="manual-recipient" placeholder="Número de WhatsApp (ej: 1122334455)" required>
+                                    <textarea id="manual-message" rows="3" placeholder="Escribe tu mensaje aquí..." required></textarea>
+                                    <button type="submit" id="send-manual-btn"><i class="fas fa-paper-plane"></i> Enviar Mensaje</button>
+                                    <p id="send-feedback" class="feedback-message"></p>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3>Acciones del Bot</h3></div>
+                            <div class="card-body actions-body">
+                                <button id="connect-btn" class="action-btn connect"><i class="fas fa-play-circle"></i> Conectar</button>
+                                <button id="disconnect-btn" class="action-btn disconnect"><i class="fas fa-stop-circle"></i> Desconectar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <button class="fab"><i class="fas fa-question"></i></button>
+    </div>
+
+    <div id="ticket-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Detalles del Ticket</h3>
+                <button id="close-modal-btn" class="close-modal-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="ticket-detail"><strong>ID del Ticket:</strong> <span id="modal-ticket-id"></span></div>
+                <div class="ticket-detail"><strong>Fecha:</strong> <span id="modal-ticket-date"></span></div>
+                <div class="ticket-detail"><strong>Cliente:</strong> <span id="modal-ticket-client"></span></div>
+                <div class="ticket-detail"><strong>Número:</strong> <span id="modal-ticket-number"></span></div>
+                <div class="ticket-detail"><strong>Agente:</strong> <span id="modal-ticket-agent"></span></div>
+                <div class="ticket-detail"><strong>Estado:</strong> <span id="modal-ticket-status"></span></div>
+                <div class="ticket-detail"><strong>Sentimiento:</strong> <span id="modal-ticket-sentiment"></span></div>
+                <hr>
+                <div class="ticket-detail"><strong>Mensaje Inicial:</strong>
+                    <p id="modal-ticket-message"></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-close-ticket-btn" class="action-btn disconnect">Cerrar Ticket</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="sales-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="sales-modal-title">Añadir/Editar Item</h3>
+                <button id="close-sales-modal-btn" class="close-modal-btn">&times;</button>
+            </div>
+            <form id="sales-form">
+                <div class="modal-body">
+                    <div id="sales-form-fields" class="modern-form"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="action-btn connect">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="confirm-modal-overlay" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="confirm-modal-title">Confirmar Acción</h3>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-modal-text"></p>
+            </div>
+            <div class="modal-footer">
+                <button id="confirm-modal-cancel" class="action-btn disconnect">Cancelar</button>
+                <button id="confirm-modal-ok" class="action-btn connect">Aceptar</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="client.js"></script>
+</body>
+</html>
