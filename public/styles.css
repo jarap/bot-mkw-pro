@@ -294,3 +294,31 @@ small { font-size: 0.75rem; }
 .settings-card:hover .settings-icon { background: var(--color-primary); }
 .settings-card:hover .settings-icon i { color: var(--color-white); }
 .settings-card span { font-weight: 600; color: var(--color-dark); font-size: 0.9rem; }
+/* Estilos para los iconos de sentimiento */
+.sentiment-icon {
+    padding: 4px 8px;
+    border-radius: 12px; /* Bordes redondeados */
+    color: white; /* Color del texto e ícono */
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px; /* Espacio entre el ícono y el texto */
+}
+
+/* Color de fondo para cada sentimiento */
+.sentiment-contento {
+    background-color: #41f1b6; /* Verde */
+}
+
+.sentiment-neutro {
+    background-color: #677483; /* Gris */
+}
+
+.sentiment-frustrado {
+    background-color: #ffbb55; /* Naranja */
+}
+
+.sentiment-enojado {
+    background-color: #ff7782; /* Rojo */
+}

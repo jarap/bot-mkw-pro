@@ -665,7 +665,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if(confirmModalOk) confirmModalOk.addEventListener('click', okListener);
     }
 
-    // --- FUNCIONES UTILITARIAS (EXISTENTES) ---
+    // --- FUNCIONES UTILITARIAS (EXISTENTES Y NUEVAS) ---
     function updateStatusUI(status) {
         if (!statusText || !statusCard) return;
         statusText.textContent = status.replace(/_/g, ' ');
@@ -730,11 +730,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!sentiment) {
             return `<span class="sentiment-icon sentiment-neutro"><i class="fas fa-question-circle"></i> N/A</span>`;
         }
+        const sentimentLower = sentiment.toLowerCase();
         const icons = {
-            'enojado': 'fa-angry', 'frustrado': 'fa-flushed', 'neutro': 'fa-meh', 'contento': 'fa-smile'
+            'enojado': 'fa-angry', 
+            'frustrado': 'fa-flushed', 
+            'neutro': 'fa-meh', 
+            'contento': 'fa-smile'
         };
-        const iconClass = icons[sentiment] || 'fa-question-circle';
-        return `<span class="sentiment-icon sentiment-${sentiment}"><i class="fas ${iconClass}"></i> ${sentiment}</span>`;
+        const iconClass = icons[sentimentLower] || 'fa-question-circle';
+        const capitalizedSentiment = sentiment.charAt(0).toUpperCase() + sentiment.slice(1);
+        // La clase "sentiment-${sentimentLower}" es la que aplica el color de fondo desde tu CSS
+        return `<span class="sentiment-icon sentiment-${sentimentLower}"><i class="fas ${iconClass}"></i> ${capitalizedSentiment}</span>`;
     }
 
     function applyFilters() {
