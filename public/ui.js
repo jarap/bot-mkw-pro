@@ -120,11 +120,15 @@ function applyFilters() {
     render.renderTickets(ticketsTableBody, filteredTickets);
 }
 
+
+// --- INICIO DE LA MODIFICACIÓN ---
 /**
  * Maneja la carga de datos necesaria cuando se activa una pestaña.
+ * Esta función ahora es más eficiente y carga solo lo necesario.
  * @param {string} targetId - El ID de la pestaña activada.
  */
 async function handleTabLoad(targetId) {
+    // Referencias a los elementos del DOM que se necesitarán
     const ticketsTableBody = document.getElementById('tickets-table-body');
     const sessionsTableBody = document.getElementById('sessions-table-body');
     const planesTableBody = document.getElementById('planes-table-body');
@@ -132,34 +136,70 @@ async function handleTabLoad(targetId) {
     const faqTableBody = document.getElementById('faq-table-body');
     const companyConfigForm = document.getElementById('company-config-form');
 
-    if ((targetId === 'history' || targetId === 'dashboard') && allTickets.length === 0) {
-        try {
-            allTickets = await api.getTickets();
-            render.renderTickets(ticketsTableBody, allTickets);
-            render.renderDashboardCharts(allTickets);
-        } catch (e) { console.error("Error al cargar tickets:", e); }
-    } 
-    if (targetId === 'sessions') {
-        try {
-            const sessions = await api.getActiveSessions();
-            render.renderActiveSessions(sessionsTableBody, sessions);
-        } catch (e) { console.error("Error al cargar sesiones:", e); }
-    }
-    if (['planes', 'promociones', 'faq'].includes(targetId)) {
-        try {
-            const salesData = await api.getSalesData();
-            render.renderPlanes(planesTableBody, salesData.planes);
-            render.renderPromos(promosTableBody, salesData.promociones);
-            render.renderFaqs(faqTableBody, salesData.preguntasFrecuentes);
-        } catch (e) { console.error("Error al cargar datos de ventas:", e); }
-    }
-    if (targetId === 'ajustes-empresa') {
-        try {
-            const config = await api.getCompanyConfig();
-            render.renderCompanyConfigForm(companyConfigForm, config);
-        } catch (e) { console.error("Error al cargar config de empresa:", e); }
+    // Usamos un switch para manejar cada caso de forma limpia y separada
+    switch (targetId) {
+        case 'history':
+        case 'dashboard':
+            // Solo carga los tickets si aún no se han cargado
+            if (allTickets.length === 0) {
+                try {
+                    allTickets = await api.getTickets();
+                    render.renderTickets(ticketsTableBody, allTickets);
+                    render.renderDashboardCharts(allTickets);
+                } catch (e) {
+                    console.error("Error al cargar tickets:", e);
+                }
+            }
+            break;
+
+        case 'sessions':
+            try {
+                const sessions = await api.getActiveSessions();
+                render.renderActiveSessions(sessionsTableBody, sessions);
+            } catch (e) {
+                console.error("Error al cargar sesiones activas:", e);
+            }
+            break;
+
+        case 'planes':
+            try {
+                const salesData = await api.getSalesData();
+                render.renderPlanes(planesTableBody, salesData.planes);
+            } catch (e) {
+                console.error("Error al cargar planes:", e);
+            }
+            break;
+
+        case 'promociones':
+            try {
+                const salesData = await api.getSalesData();
+                render.renderPromos(promosTableBody, salesData.promociones, salesData.zonasCobertura);
+            } catch (e) {
+                console.error("Error al cargar promociones:", e);
+            }
+            break;
+
+        case 'faq':
+            try {
+                const salesData = await api.getSalesData();
+                render.renderFaqs(faqTableBody, salesData.preguntasFrecuentes);
+            } catch (e) {
+                console.error("Error al cargar preguntas frecuentes:", e);
+            }
+            break;
+
+        case 'ajustes-empresa':
+            try {
+                const config = await api.getCompanyConfig();
+                render.renderCompanyConfigForm(companyConfigForm, config);
+            } catch (e) {
+                console.error("Error al cargar config de empresa:", e);
+            }
+            break;
     }
 }
+// --- FIN DE LA MODIFICACIÓN ---
+
 
 // --- Inicializadores de Eventos ---
 export function initializeUISidebar() {
