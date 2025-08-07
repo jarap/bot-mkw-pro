@@ -2,7 +2,7 @@
 node_modules/
 
 # Archivos de entorno - ¡NUNCA SUBIR ESTE ARCHIVO!
-#.env
+.env
 
 # Archivos de credenciales de Google y Firebase - ¡MUY IMPORTANTE!
 firebase-credentials.json
