@@ -2,11 +2,11 @@
 node_modules/
 
 # Archivos de entorno - ¡NUNCA SUBIR ESTE ARCHIVO!
-.env
+#.env
 
 # Archivos de credenciales de Google y Firebase - ¡MUY IMPORTANTE!
-firebase-credentials.json
-google-credentials.json
+#firebase-credentials.json
+#google-credentials.json
 
 # Archivos de sesión y autenticación de WhatsApp-Web.js
 .wwebjs_auth/
@@ -22,3 +22,4 @@ yarn-error.log*
 # Archivos del sistema operativo
 .DS_Store
 Thumbs.db
+reset.sh
