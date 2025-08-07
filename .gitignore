@@ -5,8 +5,8 @@ node_modules/
 #.env
 
 # Archivos de credenciales de Google y Firebase - ¡MUY IMPORTANTE!
-#firebase-credentials.json
-#google-credentials.json
+firebase-credentials.json
+google-credentials.json
 
 # Archivos de sesión y autenticación de WhatsApp-Web.js
 .wwebjs_auth/
