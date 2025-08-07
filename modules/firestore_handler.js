@@ -20,6 +20,11 @@ try {
     const promosCollection = db.collection('promociones');
     const faqsCollection = db.collection('preguntasFrecuentes');
     const knowledgeCollection = db.collection('knowledge');
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Referencia a la colección de configuración
+    const configCollection = db.collection('configuracion');
+    // --- FIN DE LA MODIFICACIÓN ---
+
 
     async function logTicket(ticketData) {
         try {
@@ -102,6 +107,7 @@ try {
 
     async function updateItem(collectionName, docId, data) {
         try {
+            // Se mantiene la lógica para 'knowledge' por si se usa en otro lado
             const collectionRef = collectionName === 'knowledge' ? knowledgeCollection : db.collection(collectionName);
             await collectionRef.doc(docId).set(data, { merge: true });
             return { success: true };
@@ -119,6 +125,44 @@ try {
         }
     }
 
+    // --- INICIO DE LA MODIFICACIÓN ---
+    /**
+     * Obtiene la configuración de la empresa desde Firestore.
+     * @returns {Promise<object>} Objeto con el resultado.
+     */
+    async function getCompanyConfig() {
+        try {
+            const docRef = configCollection.doc('empresa');
+            const doc = await docRef.get();
+            if (!doc.exists) {
+                return { success: false, message: 'El documento de configuración de empresa no existe.' };
+            }
+            return { success: true, data: doc.data() };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al obtener la configuración de la empresa:'), error);
+            return { success: false, message: 'Error al leer la configuración de la empresa.' };
+        }
+    }
+
+    /**
+     * Actualiza la configuración de la empresa en Firestore.
+     * @param {object} data - Los nuevos datos a guardar.
+     * @returns {Promise<object>} Objeto con el resultado.
+     */
+    async function updateCompanyConfig(data) {
+        try {
+            const docRef = configCollection.doc('empresa');
+            await docRef.set(data, { merge: true }); // Usamos merge para no borrar campos que no se envíen
+            console.log(chalk.blue('🏢 Configuración de la empresa actualizada en Firestore.'));
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al actualizar la configuración de la empresa:'), error);
+            return { success: false, message: 'Error al guardar la configuración de la empresa.' };
+        }
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
+
+
     module.exports = {
         db,
         logTicket,
@@ -129,6 +173,10 @@ try {
         addItem,
         updateItem,
         deleteItem,
+        // --- INICIO DE LA MODIFICACIÓN ---
+        getCompanyConfig,
+        updateCompanyConfig
+        // --- FIN DE LA MODIFICACIÓN ---
     };
 
 } catch (error) {

@@ -118,6 +118,20 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // --- ENDPOINTS PARA CONFIGURACIÓN DE EMPRESA ---
+    app.get('/api/config/empresa', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getCompanyConfig();
+        res.status(result.success ? 200 : 500).json(result);
+    });
+
+    app.post('/api/config/empresa', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updateCompanyConfig(req.body);
+        res.status(result.success ? 200 : 500).json(result);
+    });
+    // --- FIN DE LA MODIFICACIÓN ---
+
+
     // --- Lógica de WebSocket ---
     const wssClients = new Set();
     wss.on('connection', (ws) => {

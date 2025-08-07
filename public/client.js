@@ -7,7 +7,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const planesTableBody = document.getElementById('planes-table-body');
     const promosTableBody = document.getElementById('promos-table-body');
     const faqTableBody = document.getElementById('faq-table-body');
-    const configForm = document.getElementById('config-form');
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Cambiamos la referencia al nuevo formulario de configuración de empresa
+    const companyConfigForm = document.getElementById('company-config-form');
+    // --- FIN DE LA MODIFICACIÓN ---
     const openTicketsValue = document.getElementById('open-tickets-value');
     const uniqueClientsValue = document.getElementById('unique-clients-value');
 
@@ -60,6 +63,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let salesData = { planes: [], promociones: [], preguntasFrecuentes: [], configuracionGeneral: {}, zonasCobertura: { listado: [] } };
     let ticketsDataLoaded = false;
     let salesDataLoaded = false;
+    // --- INICIO DE LA MODIFICACIÓN ---
+    let companyConfigLoaded = false;
+    // --- FIN DE LA MODIFICACIÓN ---
     let currentFilterStatus = 'all';
     let statusChartInstance = null;
     let sentimentChartInstance = null;
@@ -77,7 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if(linkToActivate) {
              linkToActivate.parentElement.classList.add('active');
         } else {
-            // Si no hay un link directo (ej. sub-menú de ajustes), activamos el principal
             const ajustesLink = document.querySelector('.sidebar-nav a[data-target="ajustes"]');
             if (ajustesLink) ajustesLink.parentElement.classList.add('active');
         }
@@ -87,9 +92,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if ((targetId === 'history' || targetId === 'dashboard') && !ticketsDataLoaded) {
             fetchAndRenderTickets();
         } 
-        if (['planes', 'promociones', 'faq', 'configuracion', 'ajustes'].includes(targetId) && !salesDataLoaded) {
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se separa la lógica de carga para no mezclarla con la de ventas
+        if (['planes', 'promociones', 'faq', 'ajustes'].includes(targetId) && !salesDataLoaded) {
             fetchAndRenderSalesData();
         }
+        if (targetId === 'ajustes-empresa' && !companyConfigLoaded) {
+            fetchAndRenderCompanyConfig();
+        }
+        // --- FIN DE LA MODIFICACIÓN ---
         if (targetId === 'sessions') {
             fetchAndRenderActiveSessions();
         }
@@ -169,11 +180,83 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPlanes(salesData.planes);
             renderPromos(salesData.promociones);
             renderFaqs(salesData.preguntasFrecuentes);
-            renderConfigForm(salesData.configuracionGeneral, salesData.zonasCobertura);
         } catch (error) {
             console.error('[ERROR] No se pudieron cargar los datos de ventas:', error);
         }
     }
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // --- LÓGICA DE CONFIGURACIÓN DE EMPRESA ---
+    async function fetchAndRenderCompanyConfig() {
+        console.log('[PUNTO DE CONTROL] Cargando configuración de la empresa...');
+        try {
+            const response = await fetch('/api/config/empresa');
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const result = await response.json();
+            if (!result.success) throw new Error(result.message);
+            
+            renderCompanyConfigForm(result.data);
+            companyConfigLoaded = true;
+
+        } catch (error) {
+            console.error('[ERROR] No se pudo cargar la configuración de la empresa:', error);
+            if (companyConfigForm) {
+                companyConfigForm.innerHTML = `<p class="error-message">Error al cargar la configuración.</p>`;
+            }
+        }
+    }
+
+    function renderCompanyConfigForm(config) {
+        if (!companyConfigForm) return;
+
+        // Mapeo de claves a etiquetas más amigables
+        const fieldLabels = {
+            nombreEmpresa: 'Nombre de la Empresa',
+            direccion: 'Dirección',
+            telefono: 'Teléfono de Contacto',
+            email: 'Email de Contacto',
+            logoUrl: 'URL del Logo'
+        };
+
+        let formHTML = '';
+        for (const key in config) {
+            if (Object.hasOwnProperty.call(config, key)) {
+                const label = fieldLabels[key] || key; // Usa la etiqueta amigable o la clave si no existe
+                formHTML += `
+                    <div class="form-group">
+                        <label for="company-${key}">${label}</label>
+                        <input type="text" id="company-${key}" name="${key}" value="${config[key] || ''}">
+                    </div>
+                `;
+            }
+        }
+        formHTML += `<button type="submit">Guardar Configuración de Empresa</button>`;
+        companyConfigForm.innerHTML = formHTML;
+
+        companyConfigForm.onsubmit = async (e) => {
+            e.preventDefault();
+            const formData = new FormData(companyConfigForm);
+            const newConfigData = Object.fromEntries(formData.entries());
+
+            try {
+                const response = await fetch('/api/config/empresa', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(newConfigData)
+                });
+                const result = await response.json();
+                if (!result.success) throw new Error(result.message);
+                
+                showCustomAlert('Éxito', 'La configuración de la empresa ha sido guardada.');
+                companyConfigLoaded = false; // Forzar recarga la próxima vez
+            } catch (error) {
+                console.error('[ERROR] No se pudo guardar la configuración:', error);
+                showCustomAlert('Error', 'No se pudo guardar la configuración de la empresa.');
+            }
+        };
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
+
 
     function renderPlanes(planes) {
         if (!planesTableBody) return;
@@ -232,47 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderConfigForm(config, zonas) {
-        if (!configForm) return;
-        configForm.innerHTML = `
-            <div class="form-group">
-                <label>Costo de Instalación</label>
-                <input type="number" name="costoInstalacion" value="${config.costoInstalacion || 0}">
-            </div>
-            <div class="form-group">
-                <label>Descripción General (para el Bot)</label>
-                <textarea name="descripcionGeneral" rows="3">${config.descripcionGeneral || ''}</textarea>
-            </div>
-            <div class="form-group">
-                <label>Zonas de Cobertura (una por línea)</label>
-                <textarea name="zonas" rows="5">${(zonas.listado || []).join('\n')}</textarea>
-            </div>
-            <button type="submit">Guardar Configuración</button>
-        `;
-
-        configForm.onsubmit = async (e) => {
-            e.preventDefault();
-            const formData = new FormData(configForm);
-            const newConfig = {
-                costoInstalacion: Number(formData.get('costoInstalacion')),
-                descripcionGeneral: formData.get('descripcionGeneral'),
-            };
-            const newZonas = {
-                listado: formData.get('zonas').split('\n').map(z => z.trim()).filter(z => z)
-            };
-
-            try {
-                await fetch(`/api/data/knowledge/${config.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newConfig) });
-                await fetch(`/api/data/knowledge/${zonas.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(newZonas) });
-                showCustomAlert('Éxito', 'Configuración guardada.');
-                salesDataLoaded = false;
-                fetchAndRenderSalesData();
-            } catch (error) {
-                showCustomAlert('Error', 'No se pudo guardar la configuración.');
-            }
-        };
-    }
-
     // --- LÓGICA DEL MODAL DE VENTAS ---
     function openSalesModal(type, data = {}) {
         const mode = data.id ? 'edit' : 'add';
@@ -290,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
                 break;
             case 'promociones':
-                const zonasCheckboxes = salesData.zonasCobertura.listado.map(zona => `
+                const zonasCheckboxes = (salesData.zonasCobertura.listado || []).map(zona => `
                     <label><input type="checkbox" name="zonasAplicables" value="${zona}" ${(data.zonasAplicables || []).includes(zona) ? 'checked' : ''}> ${zona}</label>
                 `).join('');
                 formHTML = `
@@ -739,7 +781,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const iconClass = icons[sentimentLower] || 'fa-question-circle';
         const capitalizedSentiment = sentiment.charAt(0).toUpperCase() + sentiment.slice(1);
-        // La clase "sentiment-${sentimentLower}" es la que aplica el color de fondo desde tu CSS
         return `<span class="sentiment-icon sentiment-${sentimentLower}"><i class="fas ${iconClass}"></i> ${capitalizedSentiment}</span>`;
     }
 
