@@ -115,7 +115,14 @@ export function renderDashboardCharts(tickets) {
 export function renderPlanes(tableBody, planes) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
-    (planes || []).forEach(plan => {
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Ordenamos los planes por precio usando JavaScript antes de mostrarlos.
+    // Esto asegura que la funcionalidad se mantenga sin depender de un índice de Firestore.
+    const sortedPlanes = (planes || []).sort((a, b) => a.precioMensual - b.precioMensual);
+    // --- FIN DE LA MODIFICACIÓN ---
+
+    sortedPlanes.forEach(plan => {
         const row = tableBody.insertRow();
         const sanitizedItem = JSON.stringify(plan).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
         row.innerHTML = `
@@ -156,7 +163,7 @@ export function renderFaqs(tableBody, faqs) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
     (faqs || []).forEach(faq => {
-        const row = faqTableBody.insertRow();
+        const row = tableBody.insertRow();
         const sanitizedItem = JSON.stringify(faq).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
         row.innerHTML = `
             <td>${faq.pregunta || 'N/A'}</td>

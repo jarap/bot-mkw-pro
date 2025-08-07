@@ -20,11 +20,7 @@ try {
     const promosCollection = db.collection('promociones');
     const faqsCollection = db.collection('preguntasFrecuentes');
     const knowledgeCollection = db.collection('knowledge');
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // Referencia a la colección de configuración
     const configCollection = db.collection('configuracion');
-    // --- FIN DE LA MODIFICACIÓN ---
-
 
     async function logTicket(ticketData) {
         try {
@@ -73,13 +69,17 @@ try {
 
     async function getSalesData() {
         try {
+            // --- INICIO DE LA MODIFICACIÓN ---
+            // Se elimina .orderBy('precioMensual') de la consulta de planes
+            // para evitar errores si el índice de Firestore no existe.
             const [planesSnap, promosSnap, faqsSnap, configSnap, zonasSnap] = await Promise.all([
-                planesCollection.orderBy('precioMensual').get(),
+                planesCollection.get(),
                 promosCollection.get(),
                 faqsCollection.get(),
                 knowledgeCollection.doc('configuracionGeneral').get(),
                 knowledgeCollection.doc('zonasCobertura').get()
             ]);
+            // --- FIN DE LA MODIFICACIÓN ---
 
             const salesData = {
                 planes: planesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
@@ -107,7 +107,6 @@ try {
 
     async function updateItem(collectionName, docId, data) {
         try {
-            // Se mantiene la lógica para 'knowledge' por si se usa en otro lado
             const collectionRef = collectionName === 'knowledge' ? knowledgeCollection : db.collection(collectionName);
             await collectionRef.doc(docId).set(data, { merge: true });
             return { success: true };
@@ -125,11 +124,6 @@ try {
         }
     }
 
-    // --- INICIO DE LA MODIFICACIÓN ---
-    /**
-     * Obtiene la configuración de la empresa desde Firestore.
-     * @returns {Promise<object>} Objeto con el resultado.
-     */
     async function getCompanyConfig() {
         try {
             const docRef = configCollection.doc('empresa');
@@ -144,15 +138,10 @@ try {
         }
     }
 
-    /**
-     * Actualiza la configuración de la empresa en Firestore.
-     * @param {object} data - Los nuevos datos a guardar.
-     * @returns {Promise<object>} Objeto con el resultado.
-     */
     async function updateCompanyConfig(data) {
         try {
             const docRef = configCollection.doc('empresa');
-            await docRef.set(data, { merge: true }); // Usamos merge para no borrar campos que no se envíen
+            await docRef.set(data, { merge: true });
             console.log(chalk.blue('🏢 Configuración de la empresa actualizada en Firestore.'));
             return { success: true };
         } catch (error) {
@@ -160,8 +149,6 @@ try {
             return { success: false, message: 'Error al guardar la configuración de la empresa.' };
         }
     }
-    // --- FIN DE LA MODIFICACIÓN ---
-
 
     module.exports = {
         db,
@@ -173,10 +160,8 @@ try {
         addItem,
         updateItem,
         deleteItem,
-        // --- INICIO DE LA MODIFICACIÓN ---
         getCompanyConfig,
         updateCompanyConfig
-        // --- FIN DE LA MODIFICACIÓN ---
     };
 
 } catch (error) {
