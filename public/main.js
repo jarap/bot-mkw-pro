@@ -10,7 +10,6 @@ import * as modals from './modals.js';
 document.addEventListener('DOMContentLoaded', () => {
     console.log('[PUNTO DE CONTROL] DOM cargado. Iniciando main.js...');
 
-    // --- ALMACÉN DE DATOS DEL CLIENTE ---
     let state = {
         tickets: [],
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { listado: [] } },
@@ -18,7 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
         activeSessions: []
     };
 
-    // --- REFERENCIAS A ELEMENTOS DEL DOM ---
     const dom = {
         ticketsTableBody: document.getElementById('tickets-table-body'),
         sessionsTableBody: document.getElementById('sessions-table-body'),
@@ -34,7 +32,6 @@ document.addEventListener('DOMContentLoaded', () => {
         disconnectBtn: document.getElementById('disconnect-btn'),
     };
 
-    // --- LÓGICA DE CARGA DE DATOS ---
     async function loadInitialData() {
         try {
             state.tickets = await api.getTickets();
@@ -43,10 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (error) {
             console.error("Fallo en la carga inicial de tickets.", error);
         }
-        // El resto de los datos se cargan bajo demanda al navegar a la pestaña.
     }
 
-    // --- CONEXIÓN WEBSOCKET ---
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(`${protocol}//${window.location.host}`);
@@ -60,6 +55,12 @@ document.addEventListener('DOMContentLoaded', () => {
         ws.onmessage = (event) => {
             const message = JSON.parse(event.data);
             switch (message.type) {
+                // --- INICIO DE LA MODIFICACIÓN ---
+                case 'companyConfig':
+                    state.companyConfig = message.data;
+                    ui.updateHeaderBranding(message.data);
+                    break;
+                // --- FIN DE LA MODIFICACIÓN ---
                 case 'status':
                     ui.updateStatusUI(message.data);
                     break;
@@ -94,12 +95,11 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
-    // --- INICIALIZACIÓN DE EVENTOS ---
     function initializeEventListeners() {
         ui.initializeUISidebar();
         ui.initializeUINavigation();
         ui.initializeTicketFilters();
-        modals.initializeModals(() => state.salesData); // Pasamos una función para obtener los datos de ventas
+        modals.initializeModals(() => state.salesData);
 
         dom.connectBtn?.addEventListener('click', () => api.connectBot());
         dom.disconnectBtn?.addEventListener('click', () => api.disconnectBot());
@@ -140,9 +140,48 @@ document.addEventListener('DOMContentLoaded', () => {
                 modals.showCustomAlert('Error', 'No se pudo guardar la configuración.');
             }
         });
+
+        dom.companyConfigForm?.addEventListener('click', (e) => {
+            if (e.target.id === 'change-logo-btn') {
+                document.getElementById('logo-file-input')?.click();
+            }
+        });
+
+        dom.companyConfigForm?.addEventListener('change', async (e) => {
+            if (e.target.id === 'logo-file-input' && e.target.files[0]) {
+                const file = e.target.files[0];
+                const formData = new FormData();
+                formData.append('logo', file);
+
+                const changeBtn = document.getElementById('change-logo-btn');
+                const originalBtnText = changeBtn.innerHTML;
+                changeBtn.disabled = true;
+                changeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
+
+                try {
+                    const response = await fetch('/api/upload/logo', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+
+                    if (!result.success) throw new Error(result.message);
+
+                    document.getElementById('logo-preview').src = result.filePath;
+                    document.getElementById('company-logoUrl').value = result.filePath;
+                    
+                    ui.showFeedback('Logo subido. No olvides guardar la configuración.', 'success');
+
+                } catch (error) {
+                    modals.showCustomAlert('Error de Subida', `No se pudo subir el logo: ${error.message}`);
+                } finally {
+                    changeBtn.disabled = false;
+                    changeBtn.innerHTML = originalBtnText;
+                }
+            }
+        });
     }
 
-    // --- INICIO DE LA APLICACIÓN ---
     initializeWebSocket();
     initializeEventListeners();
 });

@@ -28,6 +28,7 @@
     "google-auth-library": "^10.2.0",
     "google-spreadsheet": "^4.1.5",
     "googleapis": "^154.1.0",
+    "multer": "^2.0.2",
     "qrcode": "^1.5.3",
     "redis": "^5.7.0",
     "whatsapp-web.js": "^1.23.0",

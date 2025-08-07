@@ -7,10 +7,24 @@ import * as render from './render.js';
 let allTickets = [];
 let currentFilterStatus = 'all';
 
+// --- INICIO DE LA MODIFICACIÓN ---
 /**
- * Actualiza la interfaz del estado del bot (color y texto).
- * @param {string} status - El nuevo estado del bot.
+ * Actualiza el logo y el nombre de la empresa en la cabecera del panel.
+ * @param {object} config - El objeto de configuración de la empresa.
  */
+export function updateHeaderBranding(config) {
+    const logoElement = document.getElementById('header-logo');
+    const nameElement = document.getElementById('header-company-name');
+
+    if (logoElement && config.logoUrl) {
+        logoElement.src = config.logoUrl;
+    }
+    if (nameElement && config.nombreEmpresa) {
+        nameElement.textContent = config.nombreEmpresa;
+    }
+}
+// --- FIN DE LA MODIFICACIÓN ---
+
 export function updateStatusUI(status) {
     const statusText = document.getElementById('status-text');
     const statusCard = statusText ? statusText.closest('.kpi-card') : null;
@@ -28,7 +42,7 @@ export function updateStatusUI(status) {
         qrCard.style.display = (status === 'ESPERANDO QR' && dashboardSection.classList.contains('active')) ? 'block' : 'none';
     }
 
-    statusCard.className = 'card kpi-card'; // Reset classes
+    statusCard.className = 'card kpi-card';
     switch (status) {
         case 'CONECTADO': statusCard.classList.add('bg-green'); break;
         case 'DESCONECTADO': case 'ERROR': statusCard.classList.add('bg-red'); break;
@@ -42,11 +56,6 @@ export function updateStatusUI(status) {
     if(sendManualBtn) sendManualBtn.disabled = !isConnected;
 }
 
-/**
- * Muestra un mensaje de feedback temporal en el formulario de envío manual.
- * @param {string} message - El mensaje a mostrar.
- * @param {string} type - 'success' o 'error'.
- */
 export function showFeedback(message, type) {
     const sendFeedback = document.getElementById('send-feedback');
     if (!sendFeedback) return;
@@ -58,18 +67,11 @@ export function showFeedback(message, type) {
     }, 5000);
 }
 
-/**
- * Muestra u oculta la barra lateral en modo responsive.
- */
 export function toggleSidebar() {
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) sidebar.classList.toggle('show');
 }
 
-/**
- * Cambia a la pestaña de contenido principal especificada.
- * @param {string} targetId - El ID de la sección a mostrar.
- */
 export function navigateToTab(targetId) {
     const navLinks = document.querySelectorAll('.sidebar-nav a');
     const mainSections = document.querySelectorAll('.main-section');
@@ -86,14 +88,9 @@ export function navigateToTab(targetId) {
     }
 
     mainSections.forEach(section => section.classList.toggle('active', section.id === targetId));
-
-    // Lógica de carga de datos al cambiar de pestaña
     handleTabLoad(targetId);
 }
 
-/**
- * Aplica los filtros de búsqueda y estado a la tabla de tickets.
- */
 function applyFilters() {
     const searchTicketInput = document.getElementById('search-ticket-input');
     const ticketsTableBody = document.getElementById('tickets-table-body');
@@ -120,15 +117,7 @@ function applyFilters() {
     render.renderTickets(ticketsTableBody, filteredTickets);
 }
 
-
-// --- INICIO DE LA MODIFICACIÓN ---
-/**
- * Maneja la carga de datos necesaria cuando se activa una pestaña.
- * Esta función ahora es más eficiente y carga solo lo necesario.
- * @param {string} targetId - El ID de la pestaña activada.
- */
 async function handleTabLoad(targetId) {
-    // Referencias a los elementos del DOM que se necesitarán
     const ticketsTableBody = document.getElementById('tickets-table-body');
     const sessionsTableBody = document.getElementById('sessions-table-body');
     const planesTableBody = document.getElementById('planes-table-body');
@@ -136,72 +125,50 @@ async function handleTabLoad(targetId) {
     const faqTableBody = document.getElementById('faq-table-body');
     const companyConfigForm = document.getElementById('company-config-form');
 
-    // Usamos un switch para manejar cada caso de forma limpia y separada
     switch (targetId) {
         case 'history':
         case 'dashboard':
-            // Solo carga los tickets si aún no se han cargado
             if (allTickets.length === 0) {
                 try {
                     allTickets = await api.getTickets();
                     render.renderTickets(ticketsTableBody, allTickets);
                     render.renderDashboardCharts(allTickets);
-                } catch (e) {
-                    console.error("Error al cargar tickets:", e);
-                }
+                } catch (e) { console.error("Error al cargar tickets:", e); }
             }
             break;
-
         case 'sessions':
             try {
                 const sessions = await api.getActiveSessions();
                 render.renderActiveSessions(sessionsTableBody, sessions);
-            } catch (e) {
-                console.error("Error al cargar sesiones activas:", e);
-            }
+            } catch (e) { console.error("Error al cargar sesiones activas:", e); }
             break;
-
         case 'planes':
             try {
                 const salesData = await api.getSalesData();
                 render.renderPlanes(planesTableBody, salesData.planes);
-            } catch (e) {
-                console.error("Error al cargar planes:", e);
-            }
+            } catch (e) { console.error("Error al cargar planes:", e); }
             break;
-
         case 'promociones':
             try {
                 const salesData = await api.getSalesData();
                 render.renderPromos(promosTableBody, salesData.promociones, salesData.zonasCobertura);
-            } catch (e) {
-                console.error("Error al cargar promociones:", e);
-            }
+            } catch (e) { console.error("Error al cargar promociones:", e); }
             break;
-
         case 'faq':
             try {
                 const salesData = await api.getSalesData();
                 render.renderFaqs(faqTableBody, salesData.preguntasFrecuentes);
-            } catch (e) {
-                console.error("Error al cargar preguntas frecuentes:", e);
-            }
+            } catch (e) { console.error("Error al cargar preguntas frecuentes:", e); }
             break;
-
         case 'ajustes-empresa':
             try {
                 const config = await api.getCompanyConfig();
                 render.renderCompanyConfigForm(companyConfigForm, config);
-            } catch (e) {
-                console.error("Error al cargar config de empresa:", e);
-            }
+            } catch (e) { console.error("Error al cargar config de empresa:", e); }
             break;
     }
 }
-// --- FIN DE LA MODIFICACIÓN ---
 
-
-// --- Inicializadores de Eventos ---
 export function initializeUISidebar() {
     const menuToggleBtn = document.getElementById('menu-toggle-btn');
     menuToggleBtn?.addEventListener('click', toggleSidebar);

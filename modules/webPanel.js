@@ -7,24 +7,31 @@ const fs = require('fs');
 const { WebSocketServer } = require('ws');
 const qrcode = require('qrcode');
 const chalk = require('chalk');
+const multer = require('multer');
+
+const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+}
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, uploadsDir),
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage: storage });
 
 function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClient) {
     const wss = new WebSocketServer({ server });
     
-    app.use(session({
-        secret: process.env.SESSION_SECRET || 'fallback-secret-por-si-acaso',
-        resave: false,
-        saveUninitialized: true,
-        cookie: { secure: false }
-    }));
+    app.use(session({ secret: process.env.SESSION_SECRET || 'fallback-secret-por-si-acaso', resave: false, saveUninitialized: true, cookie: { secure: false } }));
     app.use(express.static(path.join(__dirname, '..', 'public')));
     app.use(bodyParser.urlencoded({ extended: true }));
     app.use(bodyParser.json());
-
     const checkAuth = (req, res, next) => req.session.loggedin ? next() : res.redirect('/');
 
     app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'login.html')));
-    
     app.post('/login', (req, res) => {
         try {
             const users = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'users.json')));
@@ -40,49 +47,45 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
             res.send('Error al leer el archivo de usuarios.');
         }
     });
-
     app.get('/panel', checkAuth, (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'mkwap.html')));
-    
     app.get('/logout', (req, res) => req.session.destroy(() => res.redirect('/')));
 
-    // --- API Endpoints ---
     app.get('/api/status', checkAuth, (req, res) => res.json({ status: whatsappClient.getStatus() }));
     app.get('/api/connect', checkAuth, (req, res) => { whatsappClient.initialize(); res.json({message: "Initializing..."}); });
     app.get('/api/disconnect', checkAuth, (req, res) => { whatsappClient.disconnect(); res.json({message: "Disconnecting..."}); });
-    
     app.post('/api/send-manual', checkAuth, async (req, res) => {
         const { recipient, message } = req.body;
         try {
             const chatId = `549${recipient.replace(/\D/g, '')}@c.us`;
             await whatsappClient.sendMessage(chatId, message);
-            res.json({ status: 'success', message: 'Mensaje enviado.' });
+            res.json({ success: true, message: 'Mensaje enviado.' });
         } catch (error) {
-            res.status(500).json({ status: 'error', message: error.message });
+            res.status(500).json({ success: false, message: error.message });
         }
     });
-
+    app.post('/api/upload/logo', checkAuth, upload.single('logo'), (req, res) => {
+        if (!req.file) return res.status(400).json({ success: false, message: 'No se ha subido ningún archivo.' });
+        res.json({ success: true, filePath: `/uploads/${req.file.filename}` });
+    });
     app.get('/api/tickets', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getAllTickets();
         res.status(result.success ? 200 : 500).json(result);
     });
-
     app.get('/api/salesdata', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getSalesData();
         res.status(result.success ? 200 : 500).json(result);
     });
-
     app.post('/api/tickets/close', checkAuth, async (req, res) => {
         const { ticketId } = req.body;
-        if (!ticketId) return res.status(400).json({ status: 'error', message: 'Falta el ID del ticket.' });
+        if (!ticketId) return res.status(400).json({ success: false, message: 'Falta el ID del ticket.' });
         try {
             await firestoreHandler.updateTicket(ticketId, { 'Estado': 'Cerrado', 'isOpen': false });
             broadcastKPIs();
-            res.json({ status: 'success', message: 'Ticket cerrado correctamente.' });
+            res.json({ success: true, message: 'Ticket cerrado correctamente.' });
         } catch (error) {
-            res.status(500).json({ status: 'error', message: 'No se pudo cerrar el ticket.' });
+            res.status(500).json({ success: false, message: 'No se pudo cerrar el ticket.' });
         }
     });
-
     app.get('/api/activesessions', checkAuth, async (req, res) => {
         try {
             const sessionKeys = await redisClient.keys('session_client:*');
@@ -98,57 +101,58 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
             res.status(500).json({ success: false, message: 'No se pudo obtener las sesiones activas.' });
         }
     });
-
-    // --- ENDPOINTS CRUD GENÉRICOS ---
+    app.get('/api/config/empresa', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getCompanyConfig();
+        res.status(result.success ? 200 : 500).json(result);
+    });
+    app.post('/api/config/empresa', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updateCompanyConfig(req.body);
+        res.status(result.success ? 200 : 500).json(result);
+    });
     app.post('/api/data/:collection', checkAuth, async (req, res) => {
         const { collection } = req.params;
         const result = await firestoreHandler.addItem(collection, req.body);
         res.status(result.success ? 201 : 500).json(result);
     });
-
     app.put('/api/data/:collection/:id', checkAuth, async (req, res) => {
         const { collection, id } = req.params;
         const result = await firestoreHandler.updateItem(collection, id, req.body);
         res.status(result.success ? 200 : 500).json(result);
     });
-
     app.delete('/api/data/:collection/:id', checkAuth, async (req, res) => {
         const { collection, id } = req.params;
         const result = await firestoreHandler.deleteItem(collection, id);
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // --- ENDPOINTS PARA CONFIGURACIÓN DE EMPRESA ---
-    app.get('/api/config/empresa', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.getCompanyConfig();
-        res.status(result.success ? 200 : 500).json(result);
-    });
-
-    app.post('/api/config/empresa', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.updateCompanyConfig(req.body);
-        res.status(result.success ? 200 : 500).json(result);
-    });
-    // --- FIN DE LA MODIFICACIÓN ---
-
-
     // --- Lógica de WebSocket ---
     const wssClients = new Set();
-    wss.on('connection', (ws) => {
+    // --- INICIO DE LA MODIFICACIÓN ---
+    wss.on('connection', async (ws) => { // Convertimos la función a async
         wssClients.add(ws);
         console.log('Cliente conectado al panel de control.');
+
+        // Enviamos la configuración de la empresa al cliente recién conectado
+        try {
+            const configResult = await firestoreHandler.getCompanyConfig();
+            if (configResult.success) {
+                ws.send(JSON.stringify({ type: 'companyConfig', data: configResult.data }));
+            }
+        } catch (error) {
+            console.error(chalk.red('❌ Error al enviar config de empresa por WebSocket:'), error);
+        }
+
         ws.on('close', () => {
             wssClients.delete(ws);
             console.log('Cliente del panel desconectado.');
         });
     });
+    // --- FIN DE LA MODIFICACIÓN ---
 
     function broadcast(data) {
         const message = JSON.stringify(data);
         wssClients.forEach((client) => {
-            if (client.readyState === 1) {
-                client.send(message);
-            }
+            if (client.readyState === 1) client.send(message);
         });
     }
 

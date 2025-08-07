@@ -115,13 +115,7 @@ export function renderDashboardCharts(tickets) {
 export function renderPlanes(tableBody, planes) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
-
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // Ordenamos los planes por precio usando JavaScript antes de mostrarlos.
-    // Esto asegura que la funcionalidad se mantenga sin depender de un índice de Firestore.
     const sortedPlanes = (planes || []).sort((a, b) => a.precioMensual - b.precioMensual);
-    // --- FIN DE LA MODIFICACIÓN ---
-
     sortedPlanes.forEach(plan => {
         const row = tableBody.insertRow();
         const sanitizedItem = JSON.stringify(plan).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
@@ -183,20 +177,45 @@ export function renderCompanyConfigForm(form, config) {
         direccion: 'Dirección',
         telefono: 'Teléfono de Contacto',
         email: 'Email de Contacto',
-        logoUrl: 'URL del Logo'
+        logoUrl: 'Logo de la Empresa' // Cambiamos la etiqueta
     };
+    
     let formHTML = '';
-    for (const key in config) {
+    // Usamos un orden predefinido para los campos
+    const fieldOrder = ['nombreEmpresa', 'direccion', 'telefono', 'email', 'logoUrl'];
+
+    fieldOrder.forEach(key => {
         if (Object.hasOwnProperty.call(config, key)) {
             const label = fieldLabels[key] || key;
-            formHTML += `
-                <div class="form-group">
-                    <label for="company-${key}">${label}</label>
-                    <input type="text" id="company-${key}" name="${key}" value="${config[key] || ''}">
-                </div>
-            `;
+            
+            // --- INICIO DE LA MODIFICACIÓN ---
+            if (key === 'logoUrl') {
+                formHTML += `
+                    <div class="form-group">
+                        <label>${label}</label>
+                        <div class="logo-upload-container" style="display: flex; align-items: center; gap: 20px; background-color: #f6f6f9; padding: 15px; border-radius: 0.8rem;">
+                            <img id="logo-preview" src="${config[key] || 'https://via.placeholder.com/150'}" alt="Vista previa del Logo" style="width: 100px; height: 100px; object-fit: contain; border-radius: 0.4rem; background-color: white; padding: 5px;">
+                            <div>
+                                <button type="button" id="change-logo-btn" class="action-btn-small"><i class="fas fa-upload"></i> Cambiar Logo</button>
+                                <input type="file" id="logo-file-input" name="logo" accept="image/png" style="display: none;">
+                                <input type="hidden" id="company-logoUrl" name="logoUrl" value="${config[key] || ''}">
+                                <small style="display: block; margin-top: 10px; color: #677483;">Sube un archivo PNG para el logo.</small>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                formHTML += `
+                    <div class="form-group">
+                        <label for="company-${key}">${label}</label>
+                        <input type="text" id="company-${key}" name="${key}" value="${config[key] || ''}">
+                    </div>
+                `;
+            }
+            // --- FIN DE LA MODIFICACIÓN ---
         }
-    }
+    });
+
     formHTML += `<button type="submit">Guardar Configuración de Empresa</button>`;
     form.innerHTML = formHTML;
 }
