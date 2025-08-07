@@ -21,6 +21,9 @@ try {
     const faqsCollection = db.collection('preguntasFrecuentes');
     const knowledgeCollection = db.collection('knowledge');
     const configCollection = db.collection('configuracion');
+    // --- INICIO DE LA MODIFICACIÓN ---
+    const zonasCollection = db.collection('zonasCobertura');
+    // --- FIN DE LA MODIFICACIÓN ---
 
     async function logTicket(ticketData) {
         try {
@@ -70,15 +73,19 @@ try {
     async function getSalesData() {
         try {
             // --- INICIO DE LA MODIFICACIÓN ---
-            // Se elimina .orderBy('precioMensual') de la consulta de planes
-            // para evitar errores si el índice de Firestore no existe.
+            // Se ajusta la consulta para leer la colección 'zonasCobertura'
             const [planesSnap, promosSnap, faqsSnap, configSnap, zonasSnap] = await Promise.all([
-                planesCollection.get(),
+                planesCollection.orderBy('precioMensual').get(),
                 promosCollection.get(),
                 faqsCollection.get(),
                 knowledgeCollection.doc('configuracionGeneral').get(),
-                knowledgeCollection.doc('zonasCobertura').get()
+                zonasCollection.limit(1).get() // Obtenemos el primer (y único) documento de la colección de zonas
             ]);
+
+            let zonasDoc = null;
+            if (!zonasSnap.empty) {
+                zonasDoc = zonasSnap.docs[0];
+            }
             // --- FIN DE LA MODIFICACIÓN ---
 
             const salesData = {
@@ -86,7 +93,10 @@ try {
                 promociones: promosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 preguntasFrecuentes: faqsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 configuracionGeneral: configSnap.exists ? { id: configSnap.id, ...configSnap.data() } : {},
-                zonasCobertura: zonasSnap.exists ? { id: zonasSnap.id, ...zonasSnap.data() } : { listado: [] }
+                // --- INICIO DE LA MODIFICACIÓN ---
+                // Se empaquetan los datos de la zona correctamente
+                zonasCobertura: zonasDoc ? { id: zonasDoc.id, ...zonasDoc.data() } : { id: null, listado: [] }
+                // --- FIN DE LA MODIFICACIÓN ---
             };
 
             return { success: true, data: salesData };
@@ -107,8 +117,8 @@ try {
 
     async function updateItem(collectionName, docId, data) {
         try {
-            const collectionRef = collectionName === 'knowledge' ? knowledgeCollection : db.collection(collectionName);
-            await collectionRef.doc(docId).set(data, { merge: true });
+            // No es necesario cambiar nada aquí, ya que el nombre de la colección viene del frontend.
+            await db.collection(collectionName).doc(docId).set(data, { merge: true });
             return { success: true };
         } catch (error) {
             return { success: false, message: error.message };

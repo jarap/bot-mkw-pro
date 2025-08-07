@@ -81,7 +81,7 @@ function openSalesModal(type, data = {}, salesData) {
 
     if (!overlay || !titleEl || !formFieldsEl || !form) return;
 
-    const mode = data.id ? 'edit' : 'add';
+    const mode = (data.id || data.isEditing) ? 'edit' : 'add';
     titleEl.textContent = `${mode === 'add' ? 'Añadir' : 'Editar'} ${type}`;
     
     let formHTML = '';
@@ -112,11 +112,21 @@ function openSalesModal(type, data = {}, salesData) {
                 <textarea name="respuesta" rows="4" placeholder="Respuesta oficial">${data.respuesta || ''}</textarea>
             `;
             break;
+        case 'zona':
+            titleEl.textContent = `${data.isEditing ? 'Editar' : 'Añadir'} Zona de Cobertura`;
+            formHTML = `
+                <input type="text" name="nombre" placeholder="Nombre de la Zona" value="${data.nombre || ''}" required>
+            `;
+            break;
     }
     formFieldsEl.innerHTML = formHTML;
     
     form.dataset.type = type;
     form.dataset.id = data.id || '';
+    if (type === 'zona') {
+        form.dataset.isEditing = data.isEditing || false;
+        form.dataset.originalIndex = data.originalIndex || -1;
+    }
 
     overlay.classList.add('show');
 }
@@ -127,7 +137,7 @@ function closeSalesModal() {
 }
 
 // --- Inicializadores de Eventos para Modales ---
-export function initializeModals(getSalesDataCallback) {
+export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
     // Ticket Modal
     document.getElementById('close-modal-btn')?.addEventListener('click', hideTicketModal);
     document.getElementById('ticket-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'ticket-modal-overlay') hideTicketModal(); });
@@ -159,6 +169,9 @@ export function initializeModals(getSalesDataCallback) {
     document.getElementById('add-plan-btn')?.addEventListener('click', () => openSalesModal('planes', {}, getSalesDataCallback()));
     document.getElementById('add-promo-btn')?.addEventListener('click', () => openSalesModal('promociones', {}, getSalesDataCallback()));
     document.getElementById('add-faq-btn')?.addEventListener('click', () => openSalesModal('preguntasFrecuentes', {}, getSalesDataCallback()));
+    document.getElementById('add-zona-btn')?.addEventListener('click', () => {
+        openSalesModal('zona', { isEditing: false });
+    });
     
     document.body.addEventListener('click', (e) => {
         const editButton = e.target.closest('.edit-btn');
@@ -171,18 +184,26 @@ export function initializeModals(getSalesDataCallback) {
             const { type, id } = deleteButton.dataset;
             showConfirmationModal('Confirmar Eliminación', '¿Estás seguro?', async () => {
                 await api.deleteItem(type, id);
-                // TODO: Forzar recarga de datos de ventas
+                forceReloadSalesData();
             });
+        }
+        const editZonaButton = e.target.closest('.edit-zona-btn');
+        if (editZonaButton) {
+            const zona = editZonaButton.dataset.zona;
+            const index = editZonaButton.dataset.index;
+            openSalesModal('zona', { nombre: zona, isEditing: true, originalIndex: index });
         }
     });
 
     document.getElementById('sales-form')?.addEventListener('submit', async (e) => {
         e.preventDefault();
         const { type, id } = e.target.dataset;
+        
+        if (type === 'zona') return;
+
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
         
-        // Procesamiento específico por tipo
         if (type === 'promociones') {
             data.activo = data.activo === 'on';
             data.zonasAplicables = formData.getAll('zonasAplicables');
@@ -198,6 +219,6 @@ export function initializeModals(getSalesDataCallback) {
             await api.addItem(type, data);
         }
         closeSalesModal();
-        // TODO: Forzar recarga de datos de ventas
+        forceReloadSalesData();
     });
 }

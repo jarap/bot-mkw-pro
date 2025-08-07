@@ -132,7 +132,7 @@ export function renderPlanes(tableBody, planes) {
     });
 }
 
-export function renderPromos(tableBody, promos, zonas) {
+export function renderPromos(tableBody, promos) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
     (promos || []).forEach(promo => {
@@ -177,18 +177,16 @@ export function renderCompanyConfigForm(form, config) {
         direccion: 'Dirección',
         telefono: 'Teléfono de Contacto',
         email: 'Email de Contacto',
-        logoUrl: 'Logo de la Empresa' // Cambiamos la etiqueta
+        logoUrl: 'Logo de la Empresa'
     };
     
     let formHTML = '';
-    // Usamos un orden predefinido para los campos
     const fieldOrder = ['nombreEmpresa', 'direccion', 'telefono', 'email', 'logoUrl'];
 
     fieldOrder.forEach(key => {
         if (Object.hasOwnProperty.call(config, key)) {
             const label = fieldLabels[key] || key;
             
-            // --- INICIO DE LA MODIFICACIÓN ---
             if (key === 'logoUrl') {
                 formHTML += `
                     <div class="form-group">
@@ -212,10 +210,36 @@ export function renderCompanyConfigForm(form, config) {
                     </div>
                 `;
             }
-            // --- FIN DE LA MODIFICACIÓN ---
         }
     });
 
     formHTML += `<button type="submit">Guardar Configuración de Empresa</button>`;
     form.innerHTML = formHTML;
+}
+
+/**
+ * Renderiza la tabla de zonas de cobertura.
+ * @param {HTMLElement} tableBody - El elemento tbody de la tabla.
+ * @param {object} zonasData - El objeto que contiene el listado de zonas y su ID.
+ */
+export function renderZonasCobertura(tableBody, zonasData) {
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    const zonas = zonasData.listado || [];
+
+    if (zonas.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="2">No hay zonas de cobertura definidas.</td></tr>';
+        return;
+    }
+
+    zonas.forEach((zona, index) => {
+        const row = tableBody.insertRow();
+        row.innerHTML = `
+            <td>${zona}</td>
+            <td>
+                <button class="action-btn-small edit-zona-btn" data-index="${index}" data-zona="${zona}"><i class="fas fa-edit"></i></button>
+                <button class="action-btn-small delete-zona-btn" data-index="${index}" data-zona="${zona}"><i class="fas fa-trash"></i></button>
+            </td>
+        `;
+    });
 }

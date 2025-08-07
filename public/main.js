@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let state = {
         tickets: [],
-        salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { listado: [] } },
+        salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] } },
         companyConfig: {},
         activeSessions: []
     };
@@ -24,6 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
         promosTableBody: document.getElementById('promos-table-body'),
         faqTableBody: document.getElementById('faq-table-body'),
         companyConfigForm: document.getElementById('company-config-form'),
+        zonasTableBody: document.getElementById('zonas-table-body'),
+        salesForm: document.getElementById('sales-form'),
         openTicketsValue: document.getElementById('open-tickets-value'),
         qrImage: document.getElementById('qr-image'),
         logIframe: document.getElementById('log-iframe'),
@@ -34,11 +36,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function loadInitialData() {
         try {
-            state.tickets = await api.getTickets();
+            const ticketsData = await api.getTickets();
+            state.tickets = ticketsData;
             render.renderTickets(dom.ticketsTableBody, state.tickets);
             render.renderDashboardCharts(state.tickets);
         } catch (error) {
             console.error("Fallo en la carga inicial de tickets.", error);
+        }
+    }
+    
+    async function forceReloadSalesData() {
+        try {
+            const data = await api.getSalesData();
+            state.salesData = data;
+            console.log('[PUNTO DE CONTROL] Datos de ventas recargados:', state.salesData);
+            
+            render.renderPlanes(dom.planesTableBody, state.salesData.planes);
+            render.renderPromos(dom.promosTableBody, state.salesData.promociones);
+            render.renderFaqs(dom.faqTableBody, state.salesData.preguntasFrecuentes);
+            render.renderZonasCobertura(dom.zonasTableBody, state.salesData.zonasCobertura);
+
+        } catch (error) {
+            console.error("Fallo en la recarga de datos de ventas.", error);
+        }
+    }
+
+    async function loadAndRenderCompanyConfig() {
+        try {
+            const configData = await api.getCompanyConfig();
+            state.companyConfig = configData;
+            render.renderCompanyConfigForm(dom.companyConfigForm, state.companyConfig);
+        } catch (error) {
+            console.error("Fallo al cargar la configuración de la empresa.", error);
+            if (dom.companyConfigForm) {
+                dom.companyConfigForm.innerHTML = `<p class="error-message">No se pudo cargar la configuración.</p>`;
+            }
         }
     }
 
@@ -55,17 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
         ws.onmessage = (event) => {
             const message = JSON.parse(event.data);
             switch (message.type) {
-                // --- INICIO DE LA MODIFICACIÓN ---
                 case 'companyConfig':
                     state.companyConfig = message.data;
                     ui.updateHeaderBranding(message.data);
                     break;
-                // --- FIN DE LA MODIFICACIÓN ---
                 case 'status':
                     ui.updateStatusUI(message.data);
                     break;
                 case 'qr':
                     if (dom.qrImage) dom.qrImage.src = message.data;
+                    ui.updateStatusUI('ESPERANDO QR');
                     break;
                 case 'log':
                     if (dom.logIframe?.contentWindow) {
@@ -95,11 +126,29 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    async function handleUpdateZonas(newListado) {
+        try {
+            const docId = state.salesData.zonasCobertura.id;
+            if (!docId) {
+                throw new Error("No se encontró el ID del documento de zonas de cobertura.");
+            }
+            // --- INICIO DE LA MODIFICACIÓN ---
+            // Se corrige el nombre de la colección a 'zonasCobertura'
+            await api.updateItem('zonasCobertura', docId, { listado: newListado });
+            // --- FIN DE LA MODIFICACIÓN ---
+            modals.showCustomAlert('Éxito', 'La lista de zonas ha sido actualizada.');
+            await forceReloadSalesData();
+        } catch (error) {
+            console.error('Error al actualizar zonas:', error);
+            modals.showCustomAlert('Error', `No se pudo actualizar la lista de zonas: ${error.message}`);
+        }
+    }
+
     function initializeEventListeners() {
         ui.initializeUISidebar();
-        ui.initializeUINavigation();
-        ui.initializeTicketFilters();
-        modals.initializeModals(() => state.salesData);
+        ui.initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig);
+        ui.initializeTicketFilters(state.tickets);
+        modals.initializeModals(() => state.salesData, forceReloadSalesData);
 
         dom.connectBtn?.addEventListener('click', () => api.connectBot());
         dom.disconnectBtn?.addEventListener('click', () => api.disconnectBot());
@@ -178,6 +227,54 @@ document.addEventListener('DOMContentLoaded', () => {
                     changeBtn.disabled = false;
                     changeBtn.innerHTML = originalBtnText;
                 }
+            }
+        });
+
+        dom.salesForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const { type } = e.target.dataset;
+            
+            if (type !== 'zona') return;
+
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            const newName = data.nombre.trim();
+            
+            if (!newName) {
+                modals.showCustomAlert('Error', 'El nombre de la zona no puede estar vacío.');
+                return;
+            }
+
+            const isEditing = e.target.dataset.isEditing === 'true';
+            const originalIndex = parseInt(e.target.dataset.originalIndex, 10);
+            
+            const currentList = [...(state.salesData.zonasCobertura.listado || [])];
+
+            if (isEditing) {
+                if (originalIndex > -1 && currentList[originalIndex]) {
+                    currentList[originalIndex] = newName;
+                }
+            } else {
+                currentList.push(newName);
+            }
+            
+            await handleUpdateZonas(currentList);
+            document.getElementById('close-sales-modal-btn')?.click();
+        });
+
+        dom.zonasTableBody?.addEventListener('click', async (e) => {
+            const deleteButton = e.target.closest('.delete-zona-btn');
+            if (deleteButton) {
+                const index = parseInt(deleteButton.dataset.index, 10);
+                const zona = deleteButton.dataset.zona;
+                
+                modals.showConfirmationModal('Confirmar Eliminación', `¿Estás seguro de que quieres eliminar la zona "${zona}"?`, () => {
+                    const currentList = [...(state.salesData.zonasCobertura.listado || [])];
+                    if (index > -1) {
+                        currentList.splice(index, 1);
+                        handleUpdateZonas(currentList);
+                    }
+                });
             }
         });
     }

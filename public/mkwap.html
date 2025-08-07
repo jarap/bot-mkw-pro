@@ -11,13 +11,10 @@
 <body>
     <div class="dashboard-container">
         <aside class="sidebar">
-            <!-- --- INICIO DE LA MODIFICACIÓN --- -->
             <div class="sidebar-header">
-                <!-- Se añaden IDs para poder modificarlos desde JavaScript -->
                 <img src="https://via.placeholder.com/150?text=Logo" alt="Logo" class="logo" id="header-logo">
                 <h1 class="logo-text" id="header-company-name">Cargando...</h1>
             </div>
-            <!-- --- FIN DE LA MODIFICACIÓN --- -->
             <nav class="sidebar-nav">
                 <h3>General</h3>
                 <ul>
@@ -128,6 +125,7 @@
                         </div>
                     </div>
                 </div>
+                
                 <div id="ajustes" class="main-section">
                     <div class="card">
                         <div class="card-header">
@@ -135,6 +133,10 @@
                         </div>
                         <div class="card-body">
                             <div class="settings-grid">
+                                <a href="#" class="settings-card" data-target="ajustes-empresa">
+                                    <div class="settings-icon"><i class="fas fa-building"></i></div>
+                                    <span>Ajustes de Empresa</span>
+                                </a>
                                 <a href="#" class="settings-card" data-target="planes">
                                     <div class="settings-icon"><i class="fas fa-wifi"></i></div>
                                     <span>Planes de Internet</span>
@@ -143,18 +145,43 @@
                                     <div class="settings-icon"><i class="fas fa-tags"></i></div>
                                     <span>Promociones</span>
                                 </a>
+                                <a href="#" class="settings-card" data-target="zonas-cobertura">
+                                    <div class="settings-icon"><i class="fas fa-map-marked-alt"></i></div>
+                                    <span>Zonas de Cobertura</span>
+                                </a>
                                 <a href="#" class="settings-card" data-target="faq">
                                     <div class="settings-icon"><i class="fas fa-question-circle"></i></div>
                                     <span>Preguntas Frecuentes</span>
-                                </a>
-                                <a href="#" class="settings-card" data-target="ajustes-empresa">
-                                    <div class="settings-icon"><i class="fas fa-building"></i></div>
-                                    <span>Ajustes de Empresa</span>
                                 </a>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <div id="zonas-cobertura" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Gestionar Zonas de Cobertura</h3>
+                            <div>
+                                <button class="action-btn-small" id="add-zona-btn"><i class="fas fa-plus"></i> Añadir Zona</button>
+                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre de la Zona</th>
+                                        <th style="width: 120px;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="zonas-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="sessions" class="main-section">
                     <div class="card">
                         <div class="card-header"><h3>Sesiones de Soporte Activas</h3></div>
@@ -186,8 +213,13 @@
                     </div>
                 </div>
                 <div id="planes" class="main-section">
-                    <div class="card">
-                        <div class="card-header"><h3>Planes de Internet</h3><button class="action-btn-small" id="add-plan-btn"><i class="fas fa-plus"></i> Añadir Plan</button></div>
+                     <div class="card">
+                        <div class="card-header"><h3>Planes de Internet</h3>
+                            <div>
+                                <button class="action-btn-small" id="add-plan-btn"><i class="fas fa-plus"></i> Añadir Plan</button>
+                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            </div>
+                        </div>
                         <div class="card-body">
                             <table class="tickets-table">
                                 <thead><tr><th>Nombre</th><th>Precio</th><th>Velocidad (Bajada/Subida)</th><th>Ideal Para</th><th>Acciones</th></tr></thead>
@@ -198,7 +230,12 @@
                 </div>
                 <div id="promociones" class="main-section">
                      <div class="card">
-                        <div class="card-header"><h3>Promociones Especiales</h3><button class="action-btn-small" id="add-promo-btn"><i class="fas fa-plus"></i> Añadir Promoción</button></div>
+                        <div class="card-header"><h3>Promociones Especiales</h3>
+                            <div>
+                                <button class="action-btn-small" id="add-promo-btn"><i class="fas fa-plus"></i> Añadir Promoción</button>
+                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            </div>
+                        </div>
                         <div class="card-body">
                             <table class="tickets-table">
                                 <thead><tr><th>Nombre</th><th>Descripción</th><th>Estado</th><th>Validez</th><th>Acciones</th></tr></thead>
@@ -209,7 +246,12 @@
                 </div>
                 <div id="faq" class="main-section">
                      <div class="card">
-                        <div class="card-header"><h3>Preguntas Frecuentes</h3><button class="action-btn-small" id="add-faq-btn"><i class="fas fa-plus"></i> Añadir Pregunta</button></div>
+                        <div class="card-header"><h3>Preguntas Frecuentes</h3>
+                            <div>
+                                <button class="action-btn-small" id="add-faq-btn"><i class="fas fa-plus"></i> Añadir Pregunta</button>
+                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            </div>
+                        </div>
                         <div class="card-body">
                             <table class="tickets-table">
                                 <thead><tr><th>Pregunta</th><th>Respuesta</th><th>Acciones</th></tr></thead>
@@ -220,7 +262,9 @@
                 </div>
                 <div id="ajustes-empresa" class="main-section">
                     <div class="card">
-                        <div class="card-header"><h3>Ajustes de Empresa</h3></div>
+                        <div class="card-header"><h3>Ajustes de Empresa</h3>
+                            <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                        </div>
                         <div class="card-body">
                             <form id="company-config-form" class="modern-form"></form>
                         </div>
