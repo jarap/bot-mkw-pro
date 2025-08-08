@@ -2,7 +2,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAuth } = require('google-auth-library');
 const chalk = require('chalk');
-const { db } = require('./firestore_handler'); // Importamos db directamente
+const { db } = require('./firestore_handler');
 
 const auth = new GoogleAuth({
     keyFilename: './firebase-credentials.json',
@@ -12,100 +12,78 @@ const auth = new GoogleAuth({
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, auth);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-/**
- * Construye dinámicamente la base de conocimiento a partir de las nuevas colecciones en Firestore.
- * @returns {Promise<string>} Un string formateado con toda la información para la IA.
- */
 async function buildKnowledgeBase() {
-    let knowledgeBase = '';
+    console.log(chalk.cyan('   -> Construyendo base de conocimiento desde Firestore...'));
+    
+    const ventasConfigSnap = await db.collection('configuracion').doc('ventas').get();
+    const ventasConfig = ventasConfigSnap.exists ? ventasConfigSnap.data() : {};
 
-    // 1. Obtener Configuraciones Generales (Estos son documentos dentro de 'knowledge')
-    const configSnap = await db.collection('knowledge').doc('configuracionGeneral').get();
-    if (configSnap.exists) {
-        const configData = configSnap.data();
-        knowledgeBase += `Descripción General: ${configData.descripcionGeneral || 'No disponible.'}\n`;
-        knowledgeBase += `Costo de Instalación Estándar: $${(configData.costoInstalacion || 0).toLocaleString('es-AR')}\n`;
-        knowledgeBase += `Información Adicional: ${configData.infoAdicional || ''}\n\n`;
-    }
-
-    // 2. Obtener Planes de Internet (CORRECCIÓN: Se llama desde la raíz)
     const planesSnap = await db.collection('planes').orderBy('precioMensual').get();
-    if (!planesSnap.empty) {
-        knowledgeBase += "Planes de Internet Disponibles:\n";
-        planesSnap.forEach(doc => {
-            const plan = doc.data();
-            knowledgeBase += `- Nombre: ${plan.nombre}, Velocidad: ${plan.velocidadBajada} Mbps, Precio: $${(plan.precioMensual || 0).toLocaleString('es-AR')}, Ideal para: ${plan.idealPara}\n`;
-        });
-        knowledgeBase += "\n";
-    }
+    const planes = planesSnap.docs.map(doc => doc.data());
 
-    // 3. Obtener Promociones Activas (CORRECCIÓN: Se llama desde la raíz)
-    const now = new Date();
-    const today = now.getDay(); // 0=Domingo, 1=Lunes, ...
     const promosQuery = db.collection('promociones').where('activo', '==', true);
     const promosSnap = await promosQuery.get();
-    
-    if (!promosSnap.empty) {
-        const activePromos = [];
-        promosSnap.forEach(doc => {
-            const promo = doc.data();
-            let isValid = true;
+    const promociones = promosSnap.docs.map(doc => doc.data());
 
-            if (promo.fechaInicio && promo.fechaInicio.toDate() > now) isValid = false;
-            if (promo.fechaFin && promo.fechaFin.toDate() < now) isValid = false;
-            if (promo.diasDeLaSemana && promo.diasDeLaSemana.length > 0 && !promo.diasDeLaSemana.includes(today)) isValid = false;
-
-            if (isValid) {
-                activePromos.push(`- ${promo.nombre}: ${promo.descripcion}`);
-            }
-        });
-
-        if (activePromos.length > 0) {
-            knowledgeBase += "¡Promociones Activas HOY!:\n";
-            knowledgeBase += activePromos.join('\n') + "\n\n";
-        }
-    }
-
-    // 4. Obtener Preguntas Frecuentes (CORRECCIÓN: Se llama desde la raíz)
     const faqsSnap = await db.collection('preguntasFrecuentes').get();
-    if (!faqsSnap.empty) {
-        knowledgeBase += "Preguntas Frecuentes Comunes:\n";
-        faqsSnap.forEach(doc => {
-            const faq = doc.data();
-            knowledgeBase += `- P: ${faq.pregunta}\n  R: ${faq.respuesta}\n`;
-        });
-    }
+    const faqs = faqsSnap.docs.map(doc => doc.data());
 
-    return knowledgeBase;
+    console.log(chalk.green('   -> Base de conocimiento construida con éxito.'));
+    return { ventasConfig, planes, promociones, faqs };
 }
-
 
 async function handleSalesConversation(chatHistory) {
     try {
-        const knowledgeBase = await buildKnowledgeBase();
+        const { ventasConfig, planes, promociones, faqs } = await buildKnowledgeBase();
 
-        if (!knowledgeBase) {
-            console.error(chalk.red('❌ La base de conocimiento está vacía. Revisa la estructura en Firestore.'));
-            return "Lo siento, no tengo información disponible en este momento. Un asesor se pondrá en contacto contigo.";
+        let knowledgeString = "";
+        knowledgeString += `Descripción General: ${ventasConfig.descripcionGeneral || 'Somos una empresa de internet local.'}\n`;
+        knowledgeString += `Costo de Instalación Estándar: $${(ventasConfig.costoInstalacion || 0).toLocaleString('es-AR')}\n\n`;
+
+        if (planes.length > 0) {
+            knowledgeString += "Planes de Internet Disponibles:\n";
+            planes.forEach(plan => {
+                knowledgeString += `- Nombre: ${plan.nombre}, Velocidad: ${plan.velocidadBajada} Mbps, Precio: $${(plan.precioMensual || 0).toLocaleString('es-AR')}, Ideal para: ${plan.idealPara}\n`;
+            });
+            knowledgeString += "\n";
         }
 
-        const systemPrompt = `Eres I-Bot, el asistente de ventas virtual de UltraWIFI en San Rafael, Mendoza. Tu personalidad es la de un vecino experto en tecnología: amigable, servicial y usas un lenguaje coloquial argentino (tuteo). Tu misión es entender las necesidades del cliente, explicarle por qué nuestro servicio es la mejor opción y guiarlo para verificar si tenemos cobertura.
+        if (promociones.length > 0) {
+            knowledgeString += "¡Promociones Activas HOY!:\n";
+            promociones.forEach(promo => {
+                knowledgeString += `- ${promo.nombre}: ${promo.descripcion}\n`;
+            });
+            knowledgeString += "\n";
+        }
 
+        if (faqs.length > 0) {
+            knowledgeString += "Preguntas Frecuentes Comunes:\n";
+            faqs.forEach(faq => {
+                knowledgeString += `- P: ${faq.pregunta}\n  R: ${faq.respuesta}\n`;
+            });
+        }
+
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se añade la nueva regla para la detección de dirección.
+        const reglasConversacion = (ventasConfig.reglasConversacion || '1. Sé amable.') + 
+            `\n**REGLA CRÍTICA:** Cuando consideres que el usuario ha proporcionado una dirección lo suficientemente clara como para verificar la cobertura (calle y número, barrio, etc.), tu respuesta DEBE terminar obligatoriamente con la frase secreta: [DIRECCION_DETECTADA]`;
+        // --- FIN DE LA MODIFICACIÓN ---
+
+        const systemPrompt = `${ventasConfig.mensajeBienvenida || 'Eres I-Bot, un asistente de ventas.'}
+        
         **Base de Conocimiento (ÚNICA fuente de verdad):**
         ---
-        ${knowledgeBase}
+        ${knowledgeString}
         ---
 
         **Reglas de Conversación (INQUEBRANTABLES):**
-        1.  **Sé Proactivo con las Promos:** Si hay una sección de "Promociones Activas", ¡menciónala! Es tu mejor herramienta de venta. Por ejemplo, si preguntan por el costo de instalación, responde el precio estándar y añade la promoción si existe.
-        2.  **Guía hacia la Cobertura:** Tu objetivo principal es que el cliente te dé su dirección para verificar la cobertura. Después de responder cualquier pregunta, intenta llevar la conversación a ese punto.
-        3.  **No Inventes:** Si no sabes algo, derívalo a un humano diciendo: "Esa es una muy buena pregunta. Para darte el dato exacto, prefiero que te contacte uno de los chicos del equipo comercial. ¿Te parece bien si le paso tu número?".
-        4.  **Tono y Personalidad:** Usa emojis (👋, 😊, ✅, 🚀, 🤔, 📍) y un tono cercano.`;
+        ${reglasConversacion}
+        `;
         
         const chat = model.startChat({
             history: [
                 { role: 'user', parts: [{ text: systemPrompt }] },
-                { role: 'model', parts: [{ text: "¡Entendido! Estoy listo para asistir al cliente como un vendedor experto de UltraWIFI." }] },
+                { role: 'model', parts: [{ text: "¡Entendido! Estoy listo para asistir al cliente con la información y reglas proporcionadas, incluyendo la detección de direcciones." }] },
                 ...chatHistory.slice(0, -1)
             ]
         });

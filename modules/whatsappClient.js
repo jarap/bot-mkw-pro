@@ -15,7 +15,6 @@ const supportGroupPool = {};
 const TIMEOUT_MS = 15 * 60 * 1000;
 const STATE_TTL_SECONDS = 12 * 60 * 60; // 12 horas
 
-// NUEVO: ID del grupo para notificar nuevas consultas de ventas
 const SALES_LEADS_GROUP_ID = process.env.SALES_LEADS_GROUP_ID;
 
 
@@ -108,9 +107,10 @@ class WhatsAppClient extends EventEmitter {
                 await this.sendWelcomeMessage(chatId, result.data);
                 await this.handleRegisteredClient(chatId, userMessage, currentState);
             } else {
-                currentState = { isClient: false, awaiting: 'AWAITING_NAME', initialIntent: userMessage };
+                console.log(chalk.yellow(`   -> Nuevo prospecto. Iniciando conversación de ventas con IA...`));
+                currentState = { isClient: false, awaiting: 'IN_CONVERSATION', chatHistory: [] };
                 await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
-                await this.client.sendMessage(chatId, '¡Hola! Soy I-Bot, tu asistente virtual de UltraWIFI. Para empezar, ¿cómo te llamás?');
+                await this.handleNewProspect(chatId, userMessage, currentState);
             }
         } else {
             if (currentState.isClient) {
@@ -126,61 +126,50 @@ class WhatsAppClient extends EventEmitter {
         if (intencion === 'soporte' || userMessage.toLowerCase().includes('ayuda')) {
             await this.createSupportTicket(chatId, userMessage, currentState.clientData);
         } else {
-            // Si el cliente registrado no pide soporte, le recordamos amablemente su propósito
             const welcomeBackMessage = `¡Hola de nuevo, ${currentState.clientData.nombre}! 😊\n\nRecordá que a través de este chat podés solicitar *soporte técnico* para tu servicio. Si tenés algún problema, no dudes en describirlo y te ayudaremos.`;
             await this.client.sendMessage(chatId, welcomeBackMessage);
         }
     }
 
-    // --- FUNCIÓN handleNewProspect TOTALMENTE RENOVADA ---
     async handleNewProspect(chatId, userMessage, currentState) {
         let chatHistory = currentState.chatHistory || [];
-        currentState.prospectName = currentState.prospectName || 'Prospecto';
-
-        if (currentState.awaiting === 'AWAITING_NAME') {
-            const name = userMessage;
-            currentState.prospectName = name;
-            console.log(chalk.yellow(`   -> Prospecto identificado como: ${name}.`));
-            
-            chatHistory = [
-                { role: 'user', parts: [{ text: `(El cliente se llama ${name})` }] },
-                { role: 'model', parts: [{ text: `¡Hola, ${name}! 👋 Soy I-Bot, tu asistente virtual de UltraWIFI. ¿Cómo estás?` }] },
-                { role: 'user', parts: [{ text: currentState.initialIntent }] }
-            ];
-            
-            currentState.awaiting = 'IN_CONVERSATION';
-        } else if (currentState.awaiting === 'ADDRESS_CHECK_IN_PROGRESS') {
-            await this.client.sendMessage(chatId, `¡Hola, ${currentState.prospectName}! Un asesor ya está revisando la cobertura en la dirección que nos pasaste. Te contactará por aquí a la brevedad. Si tenés otra consulta, podés escribirla. 😊`);
-            return;
-        } else {
-            chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
-        }
+        chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
         
         console.log(chalk.cyan(`   -> Enviando historial a Gemini para continuar conversación de ventas...`));
-        const aiResponse = await iaHandler.handleSalesConversation(chatHistory);
+        let aiResponse = await iaHandler.handleSalesConversation(chatHistory);
         
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se elimina la detección por palabras clave y se implementa la detección por frase secreta.
+        const addressDetectionFlag = '[DIRECCION_DETECTADA]';
+        let addressDetected = false;
+
+        if (aiResponse.includes(addressDetectionFlag)) {
+            addressDetected = true;
+            // Limpiamos la respuesta para que el cliente no vea la frase secreta
+            aiResponse = aiResponse.replace(addressDetectionFlag, '').trim();
+        }
+
         chatHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
         currentState.chatHistory = chatHistory;
         
         await this.client.sendMessage(chatId, aiResponse);
         
-        // Verificamos si el usuario dio una dirección para pasar a un humano
-        const addressKeywords = ['calle', 'barrio', 'manzana', 'casa', 'número', 'n°', 'ruta', 'esquina'];
-        const lowerUserMessage = userMessage.toLowerCase();
-        if (addressKeywords.some(kw => lowerUserMessage.includes(kw))) {
-            console.log(chalk.green(`   -> Posible dirección detectada. Notificando a ventas...`));
+        if (addressDetected) {
+            console.log(chalk.green(`   -> IA ha detectado una dirección. Notificando a ventas...`));
             
             currentState.awaiting = 'ADDRESS_CHECK_IN_PROGRESS';
 
             if (SALES_LEADS_GROUP_ID) {
-                const notification = `*Lead de Venta para Verificar Cobertura* 📍\n\n*Nombre:* ${currentState.prospectName}\n*Número:* ${chatId.replace('@c.us', '')}\n*Posible Dirección:* "${userMessage}"\n\nPor favor, verificar y contactar al cliente.`;
+                const prospectName = 'Prospecto'; // Nombre genérico
+                const notification = `*Lead de Venta para Verificar Cobertura* 📍\n\n*Nombre:* ${prospectName}\n*Número:* ${chatId.replace('@c.us', '')}\n*Posible Dirección:* "${userMessage}"\n\nPor favor, verificar y contactar al cliente.`;
                 await this.client.sendMessage(SALES_LEADS_GROUP_ID, notification);
-                await this.client.sendMessage(chatId, `¡Perfecto, ${currentState.prospectName}! Un asesor comercial ya recibió tu dirección y va a confirmar la disponibilidad. Te responderá por este mismo chat a la brevedad. ¡Muchas gracias! 👍`);
+                await this.client.sendMessage(chatId, `¡Perfecto! Un asesor comercial ya recibió tu dirección y va a confirmar la disponibilidad. Te responderá por este mismo chat a la brevedad. ¡Muchas gracias! 👍`);
             } else {
                 console.warn(chalk.yellow('⚠️ SALES_LEADS_GROUP_ID no está configurado en .env. No se puede notificar al equipo de ventas.'));
-                await this.client.sendMessage(chatId, `¡Recibido, ${currentState.prospectName}! Estamos procesando tu consulta.`);
+                await this.client.sendMessage(chatId, `¡Recibido! Estamos procesando tu consulta.`);
             }
         }
+        // --- FIN DE LA MODIFICACIÓN ---
 
         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
     }
@@ -396,7 +385,7 @@ class WhatsAppClient extends EventEmitter {
                 const media = await agentMessage.downloadMedia();
                 await clientChat.sendMessage(media, { caption: agentMessage.body });
             } else {
-                await clientChat.sendMessage(agentMessage.body);
+                await this.client.sendMessage(agentMessage.body);
             }
             this.resetInactivityTimeout(session);
         } catch (e) {
