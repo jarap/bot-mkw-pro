@@ -137,6 +137,12 @@
                                     <div class="settings-icon"><i class="fas fa-building"></i></div>
                                     <span>Ajustes de Empresa</span>
                                 </a>
+                                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
+                                <a href="#" class="settings-card" data-target="ajustes-bot-venta">
+                                    <div class="settings-icon"><i class="fas fa-robot"></i></div>
+                                    <span>Ajustes Bot de Venta</span>
+                                </a>
+                                <!-- --- FIN DE LA MODIFICACIÓN --- -->
                                 <a href="#" class="settings-card" data-target="planes">
                                     <div class="settings-icon"><i class="fas fa-wifi"></i></div>
                                     <span>Planes de Internet</span>
@@ -157,6 +163,20 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
+                <div id="ajustes-bot-venta" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Ajustes del Bot de Venta</h3>
+                            <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                        </div>
+                        <div class="card-body">
+                            <form id="ventas-config-form" class="modern-form"></form>
+                        </div>
+                    </div>
+                </div>
+                <!-- --- FIN DE LA MODIFICACIÓN --- -->
 
                 <div id="zonas-cobertura" class="main-section">
                     <div class="card">
@@ -238,9 +258,7 @@
                         </div>
                         <div class="card-body">
                             <table class="tickets-table">
-                                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
                                 <thead><tr><th>Nombre</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr></thead>
-                                <!-- --- FIN DE LA MODIFICACIÓN --- -->
                                 <tbody id="promos-table-body"></tbody>
                             </table>
                         </div>

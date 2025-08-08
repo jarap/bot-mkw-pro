@@ -21,9 +21,7 @@ try {
     const faqsCollection = db.collection('preguntasFrecuentes');
     const knowledgeCollection = db.collection('knowledge');
     const configCollection = db.collection('configuracion');
-    // --- INICIO DE LA MODIFICACIÓN ---
     const zonasCollection = db.collection('zonasCobertura');
-    // --- FIN DE LA MODIFICACIÓN ---
 
     async function logTicket(ticketData) {
         try {
@@ -72,31 +70,25 @@ try {
 
     async function getSalesData() {
         try {
-            // --- INICIO DE LA MODIFICACIÓN ---
-            // Se ajusta la consulta para leer la colección 'zonasCobertura'
             const [planesSnap, promosSnap, faqsSnap, configSnap, zonasSnap] = await Promise.all([
                 planesCollection.orderBy('precioMensual').get(),
                 promosCollection.get(),
                 faqsCollection.get(),
                 knowledgeCollection.doc('configuracionGeneral').get(),
-                zonasCollection.limit(1).get() // Obtenemos el primer (y único) documento de la colección de zonas
+                zonasCollection.limit(1).get()
             ]);
 
             let zonasDoc = null;
             if (!zonasSnap.empty) {
                 zonasDoc = zonasSnap.docs[0];
             }
-            // --- FIN DE LA MODIFICACIÓN ---
 
             const salesData = {
                 planes: planesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 promociones: promosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 preguntasFrecuentes: faqsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 configuracionGeneral: configSnap.exists ? { id: configSnap.id, ...configSnap.data() } : {},
-                // --- INICIO DE LA MODIFICACIÓN ---
-                // Se empaquetan los datos de la zona correctamente
                 zonasCobertura: zonasDoc ? { id: zonasDoc.id, ...zonasDoc.data() } : { id: null, listado: [] }
-                // --- FIN DE LA MODIFICACIÓN ---
             };
 
             return { success: true, data: salesData };
@@ -117,7 +109,6 @@ try {
 
     async function updateItem(collectionName, docId, data) {
         try {
-            // No es necesario cambiar nada aquí, ya que el nombre de la colección viene del frontend.
             await db.collection(collectionName).doc(docId).set(data, { merge: true });
             return { success: true };
         } catch (error) {
@@ -160,6 +151,34 @@ try {
         }
     }
 
+    // --- INICIO DE LA MODIFICACIÓN ---
+    async function getVentasConfig() {
+        try {
+            const docRef = configCollection.doc('ventas');
+            const doc = await docRef.get();
+            if (!doc.exists) {
+                return { success: false, message: 'El documento de configuración de ventas no existe.' };
+            }
+            return { success: true, data: doc.data() };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al obtener la configuración de ventas:'), error);
+            return { success: false, message: 'Error al leer la configuración de ventas.' };
+        }
+    }
+
+    async function updateVentasConfig(data) {
+        try {
+            const docRef = configCollection.doc('ventas');
+            await docRef.set(data, { merge: true });
+            console.log(chalk.blue('🤖 Configuración del bot de ventas actualizada en Firestore.'));
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al actualizar la configuración de ventas:'), error);
+            return { success: false, message: 'Error al guardar la configuración de ventas.' };
+        }
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
+
     module.exports = {
         db,
         logTicket,
@@ -171,7 +190,11 @@ try {
         updateItem,
         deleteItem,
         getCompanyConfig,
-        updateCompanyConfig
+        updateCompanyConfig,
+        // --- INICIO DE LA MODIFICACIÓN ---
+        getVentasConfig,
+        updateVentasConfig
+        // --- FIN DE LA MODIFICACIÓN ---
     };
 
 } catch (error) {

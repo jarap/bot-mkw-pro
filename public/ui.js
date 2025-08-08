@@ -102,8 +102,8 @@ export function initializeUISidebar() {
     menuToggleBtn?.addEventListener('click', () => sidebar.classList.toggle('show'));
 }
 
-// --- INICIO DE LA MODIFICACIÓN: Se acepta un segundo callback para la config de la empresa ---
-export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig) {
+// --- INICIO DE LA MODIFICACIÓN ---
+export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig, loadAndRenderVentasConfig) {
 // --- FIN DE LA MODIFICACIÓN ---
     const navLinks = document.querySelectorAll('.sidebar-nav a');
     const mainSections = document.querySelectorAll('.main-section');
@@ -118,7 +118,9 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
         if (linkToActivate) {
              linkToActivate.parentElement.classList.add('active');
         } else {
-            const parentTab = ['planes', 'promociones', 'faq', 'ajustes-empresa', 'zonas-cobertura'].includes(targetId) ? 'ajustes' : null;
+            // --- INICIO DE LA MODIFICACIÓN ---
+            const parentTab = ['planes', 'promociones', 'faq', 'ajustes-empresa', 'zonas-cobertura', 'ajustes-bot-venta'].includes(targetId) ? 'ajustes' : null;
+            // --- FIN DE LA MODIFICACIÓN ---
             if (parentTab) {
                 const parentLink = document.querySelector(`.sidebar-nav a[data-target="${parentTab}"]`);
                 parentLink?.parentElement.classList.add('active');
@@ -127,7 +129,6 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
 
         mainSections.forEach(section => section.classList.toggle('active', section.id === targetId));
 
-        // --- INICIO DE LA MODIFICACIÓN: Lógica de carga de datos separada ---
         const salesTabs = ['planes', 'promociones', 'faq', 'zonas-cobertura'];
         if (salesTabs.includes(targetId)) {
             forceReloadSalesData();
@@ -135,6 +136,11 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
 
         if (targetId === 'ajustes-empresa') {
             loadAndRenderCompanyConfig();
+        }
+
+        // --- INICIO DE LA MODIFICACIÓN ---
+        if (targetId === 'ajustes-bot-venta') {
+            loadAndRenderVentasConfig();
         }
         // --- FIN DE LA MODIFICACIÓN ---
     }

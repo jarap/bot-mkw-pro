@@ -110,6 +110,18 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         const result = await firestoreHandler.updateCompanyConfig(req.body);
         res.status(result.success ? 200 : 500).json(result);
     });
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    app.get('/api/config/ventas', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getVentasConfig();
+        res.status(result.success ? 200 : 500).json(result);
+    });
+    app.post('/api/config/ventas', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updateVentasConfig(req.body);
+        res.status(result.success ? 200 : 500).json(result);
+    });
+    // --- FIN DE LA MODIFICACIÓN ---
+
     app.post('/api/data/:collection', checkAuth, async (req, res) => {
         const { collection } = req.params;
         const result = await firestoreHandler.addItem(collection, req.body);
@@ -131,15 +143,12 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         wssClients.add(ws);
         console.log('Cliente conectado al panel de control.');
 
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Enviamos el estado actual del bot tan pronto como el panel se conecta.
         try {
             const currentStatus = whatsappClient.getStatus();
             ws.send(JSON.stringify({ type: 'status', data: currentStatus }));
         } catch (error) {
             console.error(chalk.red('❌ Error al enviar estado inicial del bot por WebSocket:'), error);
         }
-        // --- FIN DE LA MODIFICACIÓN ---
 
         try {
             const configResult = await firestoreHandler.getCompanyConfig();

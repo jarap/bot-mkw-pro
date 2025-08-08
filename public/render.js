@@ -127,7 +127,6 @@ export function renderPlanes(tableBody, planes) {
     });
 }
 
-// --- INICIO DE LA MODIFICACIÓN ---
 export function renderPromos(tableBody, promos) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
@@ -151,7 +150,6 @@ export function renderPromos(tableBody, promos) {
         `;
     });
 }
-// --- FIN DE LA MODIFICACIÓN ---
 
 export function renderFaqs(tableBody, faqs) {
     if (!tableBody) return;
@@ -237,3 +235,29 @@ export function renderZonasCobertura(tableBody, zonasData) {
         `;
     });
 }
+
+// --- INICIO DE LA MODIFICACIÓN ---
+export function renderVentasConfigForm(form, config) {
+    if (!form) return;
+    
+    form.innerHTML = `
+        <div class="form-group">
+            <label for="ventas-costoInstalacion">Costo de Instalación</label>
+            <input type="number" id="ventas-costoInstalacion" name="costoInstalacion" value="${config.costoInstalacion || ''}" placeholder="Ej: 25000">
+        </div>
+        <div class="form-group">
+            <label for="ventas-mensajeBienvenida">Mensaje de Bienvenida</label>
+            <textarea id="ventas-mensajeBienvenida" name="mensajeBienvenida" rows="3">${config.mensajeBienvenida || ''}</textarea>
+        </div>
+        <div class="form-group">
+            <label for="ventas-descripcionGeneral">Descripción General</label>
+            <textarea id="ventas-descripcionGeneral" name="descripcionGeneral" rows="5">${config.descripcionGeneral || ''}</textarea>
+        </div>
+        <div class="form-group">
+            <label for="ventas-reglasConversacion">Reglas de Conversación</label>
+            <textarea id="ventas-reglasConversacion" name="reglasConversacion" rows="8">${config.reglasConversacion || ''}</textarea>
+        </div>
+        <button type="submit">Guardar Ajustes del Bot</button>
+    `;
+}
+// --- FIN DE LA MODIFICACIÓN ---

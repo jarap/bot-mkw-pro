@@ -11,13 +11,15 @@ async function fetchData(url, options = {}) {
     try {
         const response = await fetch(url, options);
         if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+            const errorBody = await response.json();
+            throw new Error(errorBody.message || `HTTP error! status: ${response.status}`);
         }
         const result = await response.json();
-        if (!result.success) {
-            throw new Error(result.message || 'La API devolvió un error no exitoso.');
+        // Se ajusta para manejar respuestas que no necesariamente tienen un campo 'success'
+        if (result.success === false) {
+             throw new Error(result.message || 'La API devolvió un error no exitoso.');
         }
-        return result.data;
+        return result.data || result;
     } catch (error) {
         console.error(`[API ERROR] Fallo en la petición a ${url}:`, error);
         throw error; // Relanzamos el error para que el llamador pueda manejarlo.
@@ -31,6 +33,9 @@ export const getTickets = () => fetchData('/api/tickets');
 export const getActiveSessions = () => fetchData('/api/activesessions');
 export const getSalesData = () => fetchData('/api/salesdata');
 export const getCompanyConfig = () => fetchData('/api/config/empresa');
+// --- INICIO DE LA MODIFICACIÓN ---
+export const getVentasConfig = () => fetchData('/api/config/ventas');
+// --- FIN DE LA MODIFICACIÓN ---
 
 // --- Funciones de acción (POST, PUT, DELETE) ---
 
@@ -54,6 +59,14 @@ export const saveCompanyConfig = (data) => fetchData('/api/config/empresa', {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
 });
+
+// --- INICIO DE LA MODIFICACIÓN ---
+export const saveVentasConfig = (data) => fetchData('/api/config/ventas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+});
+// --- FIN DE LA MODIFICACIÓN ---
 
 export const addItem = (collection, data) => fetchData(`/api/data/${collection}`, {
     method: 'POST',

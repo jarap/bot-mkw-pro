@@ -14,6 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
         tickets: [],
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] } },
         companyConfig: {},
+        // --- INICIO DE LA MODIFICACIÓN ---
+        ventasConfig: {},
+        // --- FIN DE LA MODIFICACIÓN ---
         activeSessions: []
     };
 
@@ -24,6 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
         promosTableBody: document.getElementById('promos-table-body'),
         faqTableBody: document.getElementById('faq-table-body'),
         companyConfigForm: document.getElementById('company-config-form'),
+        // --- INICIO DE LA MODIFICACIÓN ---
+        ventasConfigForm: document.getElementById('ventas-config-form'),
+        // --- FIN DE LA MODIFICACIÓN ---
         zonasTableBody: document.getElementById('zonas-table-body'),
         salesForm: document.getElementById('sales-form'),
         openTicketsValue: document.getElementById('open-tickets-value'),
@@ -74,6 +80,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    async function loadAndRenderVentasConfig() {
+        try {
+            const configData = await api.getVentasConfig();
+            state.ventasConfig = configData;
+            render.renderVentasConfigForm(dom.ventasConfigForm, state.ventasConfig);
+        } catch (error) {
+            console.error("Fallo al cargar la configuración de ventas.", error);
+            if (dom.ventasConfigForm) {
+                dom.ventasConfigForm.innerHTML = `<p class="error-message">No se pudo cargar la configuración.</p>`;
+            }
+        }
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
 
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -147,7 +168,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initializeEventListeners() {
         ui.initializeUISidebar();
-        ui.initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig);
+        // --- INICIO DE LA MODIFICACIÓN ---
+        ui.initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig, loadAndRenderVentasConfig);
+        // --- FIN DE LA MODIFICACIÓN ---
         modals.initializeModals(() => state.salesData, forceReloadSalesData);
 
         dom.connectBtn?.addEventListener('click', () => api.connectBot());
@@ -189,6 +212,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 modals.showCustomAlert('Error', 'No se pudo guardar la configuración.');
             }
         });
+
+        // --- INICIO DE LA MODIFICACIÓN ---
+        dom.ventasConfigForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(dom.ventasConfigForm);
+            const newConfigData = Object.fromEntries(formData.entries());
+            newConfigData.costoInstalacion = Number(newConfigData.costoInstalacion) || 0;
+            try {
+                await api.saveVentasConfig(newConfigData);
+                modals.showCustomAlert('Éxito', 'Configuración del bot de ventas guardada.');
+            } catch (error) {
+                modals.showCustomAlert('Error', 'No se pudo guardar la configuración.');
+            }
+        });
+        // --- FIN DE LA MODIFICACIÓN ---
 
         dom.companyConfigForm?.addEventListener('click', (e) => {
             if (e.target.id === 'change-logo-btn') {
@@ -254,11 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             } else if (type === 'promociones') {
                 data.activo = formData.has('activo');
-                
-                // --- INICIO DE LA MODIFICACIÓN ---
-                // Procesamos el nuevo campo de descuento para que se guarde como número
                 data.descuentoInstalacion = Number(data.descuentoInstalacion) || 0;
-                // --- FIN DE LA MODIFICACIÓN ---
 
                 const zonasContainer = document.getElementById('promo-zonas-container');
                 const selectedZonas = [];
