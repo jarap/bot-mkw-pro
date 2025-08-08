@@ -250,6 +250,88 @@ small { font-size: 0.75rem; }
 .checkbox-group { display: flex; flex-direction: column; gap: 0.5rem; max-height: 150px; overflow-y: auto; background: var(--color-background); padding: 1rem; border-radius: var(--border-radius-1); }
 .checkbox-group label { display: flex; align-items: center; gap: 0.5rem; }
 
+/* --- INICIO DE LA MODIFICACIÓN: Nuevos estilos para promociones --- */
+.form-group-row {
+    display: flex;
+    gap: 1.5rem;
+    align-items: center;
+}
+.form-group-row .form-group {
+    flex: 1;
+}
+.switch-container {
+    position: relative;
+    display: inline-block;
+    width: 60px;
+    height: 34px;
+}
+.switch-container input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.switch-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: #ccc;
+    transition: .4s;
+    border-radius: 34px;
+}
+.switch-slider:before {
+    position: absolute;
+    content: "";
+    height: 26px;
+    width: 26px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+input:checked + .switch-slider {
+    background-color: var(--color-success);
+}
+input:checked + .switch-slider:before {
+    transform: translateX(26px);
+}
+.zone-buttons-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    background-color: var(--color-background);
+    padding: 1rem;
+    border-radius: var(--border-radius-1);
+    margin-top: 0.5rem;
+}
+.zone-btn {
+    background-color: var(--color-white);
+    color: var(--color-dark-variant);
+    border: 1px solid var(--color-info-light);
+    padding: 0.5rem 1rem;
+    border-radius: 2rem;
+    cursor: pointer;
+    transition: all 200ms ease;
+    font-weight: 500;
+}
+.zone-btn:hover {
+    background-color: var(--color-info-light);
+}
+.zone-btn.active {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    border-color: var(--color-primary);
+}
+.zone-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+/* --- FIN DE LA MODIFICACIÓN --- */
+
 @media screen and (max-width: 1200px) {
     .dashboard-container { width: 94%; grid-template-columns: 7rem auto; }
     .sidebar-header h1, .sidebar-nav h3, .sidebar-nav ul li a span { display: none; }
@@ -294,31 +376,17 @@ small { font-size: 0.75rem; }
 .settings-card:hover .settings-icon { background: var(--color-primary); }
 .settings-card:hover .settings-icon i { color: var(--color-white); }
 .settings-card span { font-weight: 600; color: var(--color-dark); font-size: 0.9rem; }
-/* Estilos para los iconos de sentimiento */
 .sentiment-icon {
     padding: 4px 8px;
-    border-radius: 12px; /* Bordes redondeados */
-    color: white; /* Color del texto e ícono */
+    border-radius: 12px;
+    color: white;
     font-size: 0.8rem;
     font-weight: 500;
     display: inline-flex;
     align-items: center;
-    gap: 6px; /* Espacio entre el ícono y el texto */
+    gap: 6px;
 }
-
-/* Color de fondo para cada sentimiento */
-.sentiment-contento {
-    background-color: #41f1b6; /* Verde */
-}
-
-.sentiment-neutro {
-    background-color: #677483; /* Gris */
-}
-
-.sentiment-frustrado {
-    background-color: #ffbb55; /* Naranja */
-}
-
-.sentiment-enojado {
-    background-color: #ff7782; /* Rojo */
-}
+.sentiment-contento { background-color: #41f1b6; }
+.sentiment-neutro { background-color: #677483; }
+.sentiment-frustrado { background-color: #ffbb55; }
+.sentiment-enojado { background-color: #ff7782; }

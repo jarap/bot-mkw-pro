@@ -18,7 +18,6 @@ function showConfirmationModal(title, text, onOk) {
     textEl.textContent = text;
     overlay.classList.add('show');
 
-    // Limpiamos listeners anteriores para evitar ejecuciones múltiples
     const newOkBtn = okBtn.cloneNode(true);
     okBtn.parentNode.replaceChild(newOkBtn, okBtn);
     
@@ -42,7 +41,7 @@ export function showCustomAlert(title, text) {
     if (cancelBtn) cancelBtn.style.display = 'none';
     
     showConfirmationModal(title, text, () => {
-        if (cancelBtn) cancelBtn.style.display = 'inline-block'; // Restaurar para futuros usos
+        if (cancelBtn) cancelBtn.style.display = 'inline-block';
     });
 }
 
@@ -95,17 +94,57 @@ function openSalesModal(type, data = {}, salesData) {
                 <textarea name="idealPara" rows="3" placeholder="Ideal para...">${data.idealPara || ''}</textarea>
             `;
             break;
+        // --- INICIO DE LA MODIFICACIÓN: Formulario de Promociones reconstruido ---
         case 'promociones':
-            const zonasCheckboxes = (salesData.zonasCobertura.listado || []).map(zona => `
-                <label><input type="checkbox" name="zonasAplicables" value="${zona}" ${(data.zonasAplicables || []).includes(zona) ? 'checked' : ''}> ${zona}</label>
-            `).join('');
+            const toYYYYMMDD = (timestamp) => {
+                if (!timestamp || !timestamp.seconds) return '';
+                const d = new Date(timestamp.seconds * 1000);
+                return d.toISOString().split('T')[0];
+            };
+
+            const zonasButtons = (salesData.zonasCobertura.listado || []).map(zona => {
+                const isActive = (data.zonasAplicables || []).includes(zona);
+                return `<button type="button" class="zone-btn ${isActive ? 'active' : ''}" data-zona="${zona}">${zona}</button>`;
+            }).join('');
+
             formHTML = `
                 <input type="text" name="nombre" placeholder="Nombre de la Promoción" value="${data.nombre || ''}" required>
                 <textarea name="descripcion" rows="3" placeholder="Descripción">${data.descripcion || ''}</textarea>
-                <label><input type="checkbox" name="activo" ${data.activo ? 'checked' : ''}> Promoción Activa</label>
-                <div class="checkbox-group"><label>Zonas Aplicables</label>${zonasCheckboxes}</div>
+                
+                <div class="form-group-row">
+                    <div class="form-group">
+                        <label for="promo-activo">Promoción Activa</label>
+                        <label class="switch-container">
+                            <input type="checkbox" id="promo-activo" name="activo" ${data.activo ? 'checked' : ''}>
+                            <span class="switch-slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group-row">
+                    <div class="form-group">
+                        <label for="promo-fechaInicio">Fecha de Inicio</label>
+                        <input type="date" id="promo-fechaInicio" name="fechaInicio" value="${toYYYYMMDD(data.fechaInicio)}">
+                    </div>
+                    <div class="form-group">
+                        <label for="promo-fechaFin">Fecha de Fin</label>
+                        <input type="date" id="promo-fechaFin" name="fechaFin" value="${toYYYYMMDD(data.fechaFin)}">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Zonas Aplicables</label>
+                    <div class="zone-actions">
+                        <button type="button" class="action-btn-small" id="select-all-zones">Seleccionar Todas</button>
+                        <button type="button" class="action-btn-small" id="deselect-all-zones">Deseleccionar Todas</button>
+                    </div>
+                    <div class="zone-buttons-container" id="promo-zonas-container">
+                        ${zonasButtons.length > 0 ? zonasButtons : '<small>No hay zonas de cobertura definidas.</small>'}
+                    </div>
+                </div>
             `;
             break;
+        // --- FIN DE LA MODIFICACIÓN ---
         case 'preguntasFrecuentes':
             formHTML = `
                 <input type="text" name="pregunta" placeholder="Pregunta del cliente" value="${data.pregunta || ''}" required>
@@ -136,9 +175,7 @@ function closeSalesModal() {
     if (overlay) overlay.classList.remove('show');
 }
 
-// --- Inicializadores de Eventos para Modales ---
 export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
-    // Ticket Modal
     document.getElementById('close-modal-btn')?.addEventListener('click', hideTicketModal);
     document.getElementById('ticket-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'ticket-modal-overlay') hideTicketModal(); });
     document.getElementById('tickets-table-body')?.addEventListener('click', (e) => {
@@ -155,14 +192,12 @@ export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
                 await api.closeTicket(ticketId);
                 showCustomAlert('Éxito', 'Ticket cerrado correctamente.');
                 hideTicketModal();
-                // TODO: Forzar recarga de tickets en la UI
             } catch (error) {
                 showCustomAlert('Error', 'No se pudo cerrar el ticket.');
             }
         });
     });
 
-    // Sales Modal
     document.getElementById('close-sales-modal-btn')?.addEventListener('click', closeSalesModal);
     document.getElementById('sales-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'sales-modal-overlay') closeSalesModal(); });
     
@@ -204,10 +239,7 @@ export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
         
-        if (type === 'promociones') {
-            data.activo = data.activo === 'on';
-            data.zonasAplicables = formData.getAll('zonasAplicables');
-        } else if (type === 'planes') {
+        if (type === 'planes') {
             data.precioMensual = Number(data.precioMensual);
             data.velocidadBajada = Number(data.velocidadBajada);
             data.velocidadSubida = Number(data.velocidadSubida);

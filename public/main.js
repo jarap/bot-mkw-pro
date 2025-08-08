@@ -132,10 +132,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!docId) {
                 throw new Error("No se encontró el ID del documento de zonas de cobertura.");
             }
-            // --- INICIO DE LA MODIFICACIÓN ---
-            // Se corrige el nombre de la colección a 'zonasCobertura'
             await api.updateItem('zonasCobertura', docId, { listado: newListado });
-            // --- FIN DE LA MODIFICACIÓN ---
             modals.showCustomAlert('Éxito', 'La lista de zonas ha sido actualizada.');
             await forceReloadSalesData();
         } catch (error) {
@@ -232,33 +229,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dom.salesForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const { type } = e.target.dataset;
-            
-            if (type !== 'zona') return;
-
+            const { type, id } = e.target.dataset;
             const formData = new FormData(e.target);
-            const data = Object.fromEntries(formData.entries());
-            const newName = data.nombre.trim();
-            
-            if (!newName) {
-                modals.showCustomAlert('Error', 'El nombre de la zona no puede estar vacío.');
-                return;
-            }
+            let data = Object.fromEntries(formData.entries());
 
-            const isEditing = e.target.dataset.isEditing === 'true';
-            const originalIndex = parseInt(e.target.dataset.originalIndex, 10);
-            
-            const currentList = [...(state.salesData.zonasCobertura.listado || [])];
-
-            if (isEditing) {
-                if (originalIndex > -1 && currentList[originalIndex]) {
-                    currentList[originalIndex] = newName;
+            if (type === 'zona') {
+                const newName = data.nombre.trim();
+                if (!newName) {
+                    modals.showCustomAlert('Error', 'El nombre de la zona no puede estar vacío.');
+                    return;
                 }
+                const isEditing = e.target.dataset.isEditing === 'true';
+                const originalIndex = parseInt(e.target.dataset.originalIndex, 10);
+                const currentList = [...(state.salesData.zonasCobertura.listado || [])];
+                if (isEditing) {
+                    if (originalIndex > -1) currentList[originalIndex] = newName;
+                } else {
+                    currentList.push(newName);
+                }
+                await handleUpdateZonas(currentList);
+
+            } else if (type === 'promociones') {
+                data.activo = formData.has('activo');
+                
+                // --- INICIO DE LA CORRECCIÓN: Manejo de fechas vacías ---
+                data.fechaInicio = data.fechaInicio ? new Date(data.fechaInicio + 'T03:00:00Z') : null;
+                data.fechaFin = data.fechaFin ? new Date(data.fechaFin + 'T23:59:59Z') : null;
+                // --- FIN DE LA CORRECCIÓN ---
+
+                const zonasContainer = document.getElementById('promo-zonas-container');
+                const selectedZonas = [];
+                zonasContainer.querySelectorAll('.zone-btn.active').forEach(btn => {
+                    selectedZonas.push(btn.dataset.zona);
+                });
+                data.zonasAplicables = selectedZonas;
+                
+                if (id) {
+                    await api.updateItem(type, id, data);
+                } else {
+                    await api.addItem(type, data);
+                }
+                await forceReloadSalesData();
+
+            } else if (type === 'planes') {
+                data.precioMensual = Number(data.precioMensual);
+                data.velocidadBajada = Number(data.velocidadBajada);
+                data.velocidadSubida = Number(data.velocidadSubida);
+                if (id) {
+                    await api.updateItem(type, id, data);
+                } else {
+                    await api.addItem(type, data);
+                }
+                await forceReloadSalesData();
             } else {
-                currentList.push(newName);
+                 if (id) {
+                    await api.updateItem(type, id, data);
+                } else {
+                    await api.addItem(type, data);
+                }
+                await forceReloadSalesData();
             }
             
-            await handleUpdateZonas(currentList);
             document.getElementById('close-sales-modal-btn')?.click();
         });
 
@@ -277,6 +308,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         });
+
+        // --- INICIO DE LA CORRECCIÓN: Se mueve el listener al formulario ---
+        dom.salesForm?.addEventListener('click', (e) => {
+            const zoneBtn = e.target.closest('.zone-btn');
+            if (zoneBtn) {
+                zoneBtn.classList.toggle('active');
+            }
+            
+            const selectAllBtn = e.target.closest('#select-all-zones');
+            if (selectAllBtn) {
+                dom.salesForm.querySelectorAll('.zone-btn').forEach(btn => btn.classList.add('active'));
+            }
+
+            const deselectAllBtn = e.target.closest('#deselect-all-zones');
+            if (deselectAllBtn) {
+                dom.salesForm.querySelectorAll('.zone-btn').forEach(btn => btn.classList.remove('active'));
+            }
+        });
+        // --- FIN DE LA CORRECCIÓN ---
     }
 
     initializeWebSocket();

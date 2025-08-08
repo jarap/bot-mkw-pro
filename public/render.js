@@ -1,11 +1,6 @@
 // public/render.js
 // Módulo para renderizar (dibujar) HTML en el DOM.
 
-/**
- * Genera el HTML para el icono y texto de sentimiento.
- * @param {string} sentiment - El sentimiento (ej. 'contento', 'enojado').
- * @returns {string} El HTML del badge de sentimiento.
- */
 function getSentimentHTML(sentiment) {
     if (!sentiment) {
         return `<span class="sentiment-icon sentiment-neutro"><i class="fas fa-question-circle"></i> N/A</span>`;
@@ -135,11 +130,30 @@ export function renderPlanes(tableBody, planes) {
 export function renderPromos(tableBody, promos) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
+
+    const formatDate = (timestamp) => {
+        if (!timestamp || !timestamp.seconds) return 'N/A';
+        const date = new Date(timestamp.seconds * 1000);
+        // Ajuste manual para la zona horaria de Argentina (UTC-3)
+        const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+        const localDate = new Date(date.getTime() - userTimezoneOffset);
+        return localDate.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    };
+
     (promos || []).forEach(promo => {
         const row = tableBody.insertRow();
         const sanitizedItem = JSON.stringify(promo).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
-        const status = promo.activo ? '<span class="status-badge status-en-progreso">Activa</span>' : '<span class="status-badge status-cerrado">Inactiva</span>';
-        const validez = promo.fechaInicio && promo.fechaFin ? `${new Date(promo.fechaInicio.seconds * 1000).toLocaleDateString()} - ${new Date(promo.fechaFin.seconds * 1000).toLocaleDateString()}` : 'Indefinida';
+        
+        const status = promo.activo 
+            ? '<span class="status-badge status-en-progreso">Activa</span>' 
+            : '<span class="status-badge status-cerrado">Inactiva</span>';
+        
+        // --- INICIO DE LA CORRECCIÓN: Lógica de fechas mejorada ---
+        const fechaInicioStr = formatDate(promo.fechaInicio);
+        const fechaFinStr = formatDate(promo.fechaFin);
+        const validez = `${fechaInicioStr} - ${fechaFinStr}`;
+        // --- FIN DE LA CORRECCIÓN ---
+
         row.innerHTML = `
             <td>${promo.nombre || 'N/A'}</td>
             <td>${promo.descripcion || 'N/A'}</td>
@@ -184,9 +198,8 @@ export function renderCompanyConfigForm(form, config) {
     const fieldOrder = ['nombreEmpresa', 'direccion', 'telefono', 'email', 'logoUrl'];
 
     fieldOrder.forEach(key => {
-        if (Object.hasOwnProperty.call(config, key)) {
+        if (config.hasOwnProperty(key)) {
             const label = fieldLabels[key] || key;
-            
             if (key === 'logoUrl') {
                 formHTML += `
                     <div class="form-group">
@@ -217,11 +230,6 @@ export function renderCompanyConfigForm(form, config) {
     form.innerHTML = formHTML;
 }
 
-/**
- * Renderiza la tabla de zonas de cobertura.
- * @param {HTMLElement} tableBody - El elemento tbody de la tabla.
- * @param {object} zonasData - El objeto que contiene el listado de zonas y su ID.
- */
 export function renderZonasCobertura(tableBody, zonasData) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
