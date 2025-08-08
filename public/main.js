@@ -81,10 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         ws.onopen = () => {
             console.log('[PUNTO DE CONTROL] Conexión WebSocket establecida.');
-            // --- INICIO DE LA MODIFICACIÓN ---
-            // Se elimina la petición inicial. Ahora el panel espera a que el servidor le informe el estado.
-            // api.getBotStatus().then(data => ui.updateStatusUI(data.status));
-            // --- FIN DE LA MODIFICACIÓN ---
             loadInitialData();
         };
 
@@ -311,7 +307,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        dom.salesForm?.addEventListener('click', (e) => {
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se mueve el listener de los botones de zona a un nivel superior (document.body)
+        // para que funcione correctamente con contenido dinámico.
+        document.body.addEventListener('click', (e) => {
+            // Solo actuar si el clic ocurrió dentro del modal de ventas
+            if (!e.target.closest('#sales-modal-overlay')) return;
+
             const zoneBtn = e.target.closest('.zone-btn');
             if (zoneBtn) {
                 zoneBtn.classList.toggle('active');
@@ -319,14 +321,15 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const selectAllBtn = e.target.closest('#select-all-zones');
             if (selectAllBtn) {
-                dom.salesForm.querySelectorAll('.zone-btn').forEach(btn => btn.classList.add('active'));
+                document.querySelectorAll('#promo-zonas-container .zone-btn').forEach(btn => btn.classList.add('active'));
             }
 
             const deselectAllBtn = e.target.closest('#deselect-all-zones');
             if (deselectAllBtn) {
-                dom.salesForm.querySelectorAll('.zone-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('#promo-zonas-container .zone-btn').forEach(btn => btn.classList.remove('active'));
             }
         });
+        // --- FIN DE LA MODIFICACIÓN ---
     }
 
     initializeWebSocket();

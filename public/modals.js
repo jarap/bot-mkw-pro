@@ -94,12 +94,14 @@ function openSalesModal(type, data = {}, salesData) {
                 <textarea name="idealPara" rows="3" placeholder="Ideal para...">${data.idealPara || ''}</textarea>
             `;
             break;
-        // --- INICIO DE LA MODIFICACIÓN: Formulario de Promociones simplificado ---
         case 'promociones':
+            // --- INICIO DE LA MODIFICACIÓN ---
+            // Ahora, al crear cada botón, se comprueba si la zona está en la lista de zonas aplicables de la promoción.
             const zonasButtons = (salesData.zonasCobertura.listado || []).map(zona => {
                 const isActive = (data.zonasAplicables || []).includes(zona);
                 return `<button type="button" class="zone-btn ${isActive ? 'active' : ''}" data-zona="${zona}">${zona}</button>`;
             }).join('');
+            // --- FIN DE LA MODIFICACIÓN ---
 
             formHTML = `
                 <input type="text" name="nombre" placeholder="Nombre de la Promoción" value="${data.nombre || ''}" required>
@@ -127,7 +129,6 @@ function openSalesModal(type, data = {}, salesData) {
                 </div>
             `;
             break;
-        // --- FIN DE LA MODIFICACIÓN ---
         case 'preguntasFrecuentes':
             formHTML = `
                 <input type="text" name="pregunta" placeholder="Pregunta del cliente" value="${data.pregunta || ''}" required>

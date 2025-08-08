@@ -250,7 +250,6 @@ small { font-size: 0.75rem; }
 .checkbox-group { display: flex; flex-direction: column; gap: 0.5rem; max-height: 150px; overflow-y: auto; background: var(--color-background); padding: 1rem; border-radius: var(--border-radius-1); }
 .checkbox-group label { display: flex; align-items: center; gap: 0.5rem; }
 
-/* --- INICIO DE LA MODIFICACIÓN: Nuevos estilos para promociones --- */
 .form-group-row {
     display: flex;
     gap: 1.5rem;
@@ -307,10 +306,18 @@ input:checked + .switch-slider:before {
     border-radius: var(--border-radius-1);
     margin-top: 0.5rem;
 }
+.zone-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* --- INICIO DE LA MODIFICACIÓN --- */
+/* Estilos para los botones de zona y acciones de selección */
 .zone-btn {
-    background-color: var(--color-white);
-    color: var(--color-dark-variant);
-    border: 1px solid var(--color-info-light);
+    background-color: var(--color-danger);
+    color: var(--color-white);
+    border: 1px solid var(--color-danger);
     padding: 0.5rem 1rem;
     border-radius: 2rem;
     cursor: pointer;
@@ -318,17 +325,29 @@ input:checked + .switch-slider:before {
     font-weight: 500;
 }
 .zone-btn:hover {
-    background-color: var(--color-info-light);
+    opacity: 0.8;
 }
 .zone-btn.active {
-    background-color: var(--color-primary);
-    color: var(--color-white);
-    border-color: var(--color-primary);
+    background-color: var(--color-success);
+    border-color: var(--color-success);
 }
-.zone-actions {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 0.5rem;
+#select-all-zones {
+    background-color: var(--color-success);
+    color: var(--color-white);
+    border-color: var(--color-success);
+}
+#select-all-zones:hover {
+    background-color: var(--color-success);
+    opacity: 0.8;
+}
+#deselect-all-zones {
+    background-color: var(--color-danger);
+    color: var(--color-white);
+    border-color: var(--color-danger);
+}
+#deselect-all-zones:hover {
+    background-color: var(--color-danger);
+    opacity: 0.8;
 }
 /* --- FIN DE LA MODIFICACIÓN --- */
 
