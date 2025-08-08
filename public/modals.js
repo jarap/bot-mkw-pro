@@ -46,7 +46,10 @@ export function showCustomAlert(title, text) {
 }
 
 // --- Lógica del Modal de Detalles del Ticket ---
-function showTicketModal(ticket) {
+// --- INICIO DE LA MODIFICACIÓN ---
+// Ahora exportamos esta función para que pueda ser llamada desde main.js
+export function showTicketModal(ticket) {
+// --- FIN DE LA MODIFICACIÓN ---
     const overlay = document.getElementById('ticket-modal-overlay');
     if (!overlay) return;
 
@@ -100,7 +103,6 @@ function openSalesModal(type, data = {}, salesData) {
                 return `<button type="button" class="zone-btn ${isActive ? 'active' : ''}" data-zona="${zona}">${zona}</button>`;
             }).join('');
 
-            // --- INICIO DE LA MODIFICACIÓN ---
             formHTML = `
                 <div class="form-group">
                     <label for="promo-nombre">Nombre de la Promoción</label>
@@ -137,7 +139,6 @@ function openSalesModal(type, data = {}, salesData) {
                     </div>
                 </div>
             `;
-            // --- FIN DE LA MODIFICACIÓN ---
             break;
         case 'preguntasFrecuentes':
             formHTML = `
@@ -172,13 +173,11 @@ function closeSalesModal() {
 export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
     document.getElementById('close-modal-btn')?.addEventListener('click', hideTicketModal);
     document.getElementById('ticket-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'ticket-modal-overlay') hideTicketModal(); });
-    document.getElementById('tickets-table-body')?.addEventListener('click', (e) => {
-        const viewButton = e.target.closest('.view-ticket-btn');
-        if (viewButton) {
-            const ticketData = JSON.parse(viewButton.dataset.ticket.replace(/&apos;/g, "'").replace(/&quot;/g, '"'));
-            showTicketModal(ticketData);
-        }
-    });
+    
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Se elimina el event listener de la tabla de tickets de aquí. Se moverá a main.js
+    // --- FIN DE LA MODIFICACIÓN ---
+
     document.getElementById('modal-close-ticket-btn')?.addEventListener('click', (e) => {
         const ticketId = e.target.dataset.ticketId;
         showConfirmationModal('Confirmar Cierre', `¿Estás seguro de que quieres cerrar el ticket ${ticketId}?`, async () => {

@@ -9,7 +9,6 @@ const calendarHandler = require('./calendar_handler');
 const firestoreHandler = require('./firestore_handler');
 const iaHandler = require('./ia_handler');
 const redisClient = require('./redisClient');
-const localNlpHandler = require('./local_nlp_handler');
 
 const supportGroupPool = {};
 const TIMEOUT_MS = 15 * 60 * 1000;

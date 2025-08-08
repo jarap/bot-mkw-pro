@@ -14,9 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tickets: [],
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] } },
         companyConfig: {},
-        // --- INICIO DE LA MODIFICACIÓN ---
         ventasConfig: {},
-        // --- FIN DE LA MODIFICACIÓN ---
         activeSessions: []
     };
 
@@ -27,9 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         promosTableBody: document.getElementById('promos-table-body'),
         faqTableBody: document.getElementById('faq-table-body'),
         companyConfigForm: document.getElementById('company-config-form'),
-        // --- INICIO DE LA MODIFICACIÓN ---
         ventasConfigForm: document.getElementById('ventas-config-form'),
-        // --- FIN DE LA MODIFICACIÓN ---
         zonasTableBody: document.getElementById('zonas-table-body'),
         salesForm: document.getElementById('sales-form'),
         openTicketsValue: document.getElementById('open-tickets-value'),
@@ -81,7 +77,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- INICIO DE LA MODIFICACIÓN ---
     async function loadAndRenderVentasConfig() {
         try {
             const configData = await api.getVentasConfig();
@@ -94,7 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // --- FIN DE LA MODIFICACIÓN ---
 
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -168,10 +162,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initializeEventListeners() {
         ui.initializeUISidebar();
-        // --- INICIO DE LA MODIFICACIÓN ---
         ui.initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig, loadAndRenderVentasConfig);
-        // --- FIN DE LA MODIFICACIÓN ---
         modals.initializeModals(() => state.salesData, forceReloadSalesData);
+
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se actualiza el event listener para usar el ID del ticket.
+        document.body.addEventListener('click', (e) => {
+            const viewButton = e.target.closest('.view-ticket-btn');
+            if (viewButton && viewButton.dataset.ticketId) {
+                const ticketId = viewButton.dataset.ticketId;
+                const ticketData = state.tickets.find(t => t.ID_Ticket === ticketId);
+
+                if (ticketData) {
+                    modals.showTicketModal(ticketData);
+                } else {
+                    console.error(`No se encontró el ticket con ID: ${ticketId}`);
+                    modals.showCustomAlert('Error', 'No se pudieron cargar los detalles del ticket.');
+                }
+            }
+        });
+        // --- FIN DE LA MODIFICACIÓN ---
 
         dom.connectBtn?.addEventListener('click', () => api.connectBot());
         dom.disconnectBtn?.addEventListener('click', () => api.disconnectBot());
@@ -213,7 +223,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // --- INICIO DE LA MODIFICACIÓN ---
         dom.ventasConfigForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(dom.ventasConfigForm);
@@ -226,7 +235,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 modals.showCustomAlert('Error', 'No se pudo guardar la configuración.');
             }
         });
-        // --- FIN DE LA MODIFICACIÓN ---
 
         dom.companyConfigForm?.addEventListener('click', (e) => {
             if (e.target.id === 'change-logo-btn') {

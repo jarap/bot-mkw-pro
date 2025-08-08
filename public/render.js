@@ -27,15 +27,18 @@ export function renderTickets(tableBody, tickets) {
     tickets.forEach(ticket => {
         const row = tableBody.insertRow();
         const statusClass = (ticket.Estado || 'n/a').toLowerCase().replace(/ /g, '-');
-        const sanitizedTicket = JSON.stringify(ticket).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+        
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // En lugar de incrustar todo el objeto, solo guardamos el ID del ticket.
         row.innerHTML = `
             <td>${ticket.Timestamp || 'N/A'}</td>
             <td>${ticket['Nombre_Cliente'] || 'N/A'}</td>
             <td>${ticket['Agente_Asignado'] || 'N/A'}</td>
             <td><span class="status-badge status-${statusClass}">${ticket.Estado || 'N/A'}</span></td>
             <td>${getSentimentHTML(ticket.Sentimiento)}</td>
-            <td><button class="action-btn-small view-ticket-btn" data-ticket='${sanitizedTicket}'><i class="fas fa-eye"></i> Ver</button></td>
+            <td><button class="action-btn-small view-ticket-btn" data-ticket-id="${ticket.ID_Ticket}"><i class="fas fa-eye"></i> Ver</button></td>
         `;
+        // --- FIN DE LA MODIFICACIÓN ---
     });
 }
 
@@ -236,7 +239,6 @@ export function renderZonasCobertura(tableBody, zonasData) {
     });
 }
 
-// --- INICIO DE LA MODIFICACIÓN ---
 export function renderVentasConfigForm(form, config) {
     if (!form) return;
     
@@ -260,4 +262,3 @@ export function renderVentasConfigForm(form, config) {
         <button type="submit">Guardar Ajustes del Bot</button>
     `;
 }
-// --- FIN DE LA MODIFICACIÓN ---
