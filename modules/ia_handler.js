@@ -21,9 +21,8 @@ async function buildKnowledgeBase() {
     const planesSnap = await db.collection('planes').orderBy('precioMensual').get();
     const planes = planesSnap.docs.map(doc => doc.data());
 
-    const promosQuery = db.collection('promociones').where('activo', '==', true);
-    const promosSnap = await promosQuery.get();
-    const promociones = promosSnap.docs.map(doc => doc.data());
+    const promosQuery = await db.collection('promociones').where('activo', '==', true).get();
+    const promociones = promosQuery.docs.map(doc => doc.data());
 
     const faqsSnap = await db.collection('preguntasFrecuentes').get();
     const faqs = faqsSnap.docs.map(doc => doc.data());
@@ -62,11 +61,14 @@ async function handleSalesConversation(chatHistory) {
                 knowledgeString += `- P: ${faq.pregunta}\n  R: ${faq.respuesta}\n`;
             });
         }
-
+        
         // --- INICIO DE LA MODIFICACIÓN ---
-        // Se añade la nueva regla para la detección de dirección.
         const reglasConversacion = (ventasConfig.reglasConversacion || '1. Sé amable.') + 
-            `\n**REGLA CRÍTICA:** Cuando consideres que el usuario ha proporcionado una dirección lo suficientemente clara como para verificar la cobertura (calle y número, barrio, etc.), tu respuesta DEBE terminar obligatoriamente con la frase secreta: [DIRECCION_DETECTADA]`;
+            `\n\n**REGLAS DE CIERRE (MUY IMPORTANTE):**` +
+            `\n\n**ESCENARIO 1: El cliente da su dirección.**` +
+            `\nSi el último MENSAJE DEL USUARIO contiene una dirección (calle, barrio, etc.), tu respuesta debe confirmar la cobertura, presentar la oferta, terminar con una pregunta de confirmación (ej: '¿Quieres que un asesor se ponga en contacto?') Y añadir la frase secreta: [DIRECCION_DETECTADA].` +
+            `\n\n**ESCENARIO 2: El cliente quiere contratar directamente.**` +
+            `\nSi el cliente NO ha dado una dirección, pero expresa un deseo claro de contratar o hablar con un asesor (ej: "quiero contratar", "cómo hago?", "pasame con un vendedor", "metele pata"), tu respuesta debe ser ÚNICAMENTE la pregunta de confirmación (ej: 'Perfecto. ¿Quieres que un asesor comercial se ponga en contacto contigo para darte todos los detalles y finalizar la contratación?') Y añadir la frase secreta: [CIERRE_DIRECTO].`;
         // --- FIN DE LA MODIFICACIÓN ---
 
         const systemPrompt = `${ventasConfig.mensajeBienvenida || 'Eres I-Bot, un asistente de ventas.'}
@@ -76,14 +78,14 @@ async function handleSalesConversation(chatHistory) {
         ${knowledgeString}
         ---
 
-        **Reglas de Conversación (INQUEBRANTABLES):**
+        **Reglas de Conversación (INQUEBRABLES):**
         ${reglasConversacion}
         `;
         
         const chat = model.startChat({
             history: [
                 { role: 'user', parts: [{ text: systemPrompt }] },
-                { role: 'model', parts: [{ text: "¡Entendido! Estoy listo para asistir al cliente con la información y reglas proporcionadas, incluyendo la detección de direcciones." }] },
+                { role: 'model', parts: [{ text: "¡Entendido! Estoy listo para asistir al cliente con la información y reglas proporcionadas, incluyendo la detección de direcciones y la intención de cierre directo." }] },
                 ...chatHistory.slice(0, -1)
             ]
         });
@@ -96,6 +98,38 @@ async function handleSalesConversation(chatHistory) {
     } catch (error) {
         console.error(chalk.red('❌ Error en handleSalesConversation con Gemini:'), error);
         return "Lo siento, tuve un problema procesando tu consulta. Un asesor humano la revisará a la brevedad.";
+    }
+}
+
+async function analizarConfirmacion(userMessage) {
+    const prompt = `Eres un experto analista de intenciones con especialización en el dialecto español rioplatense (Argentina). Un cliente está respondiendo a la pregunta "¿Deseas contratar el servicio?". Analiza su mensaje y determina si la intención es afirmativa.
+    
+    RESPONDE ÚNICAMENTE CON "SI" O "NO".
+
+    Considera como afirmativas respuestas como:
+    - "si dale"
+    - "si metele"
+    - "metele pata"
+    - "de una"
+    - "joya"
+    - "si por favor"
+    - "claro"
+    - "obvio"
+    - "si quiero"
+
+    Mensaje del cliente: "${userMessage}"`;
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text().trim().toUpperCase();
+        
+        if (text === 'SI') {
+            return 'SI';
+        }
+        return 'NO';
+    } catch (error) {
+        console.error(chalk.red('❌ Error al analizar confirmación con Gemini:'), error);
+        return 'NO';
     }
 }
 
@@ -117,5 +151,6 @@ async function analizarSentimiento(userMessage) {
 
 module.exports = {
     handleSalesConversation,
+    analizarConfirmacion,
     analizarSentimiento,
 };

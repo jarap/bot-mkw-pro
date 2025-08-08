@@ -100,24 +100,87 @@ class WhatsAppClient extends EventEmitter {
         let currentState = await redisClient.get(`state:${chatId}`);
         
         if (!currentState) {
-            const result = await getClientDetails(chatId.replace('@c.us', '').slice(-10));
-            if (result.success) {
-                currentState = { isClient: true, clientData: result.data };
+            console.log(chalk.yellow(`   -> Nuevo contacto. Verificando número de celular en Mikrowisp...`));
+            const phoneNumber = chatId.replace('@c.us', '').slice(-10);
+            const resultByPhone = await getClientDetails(phoneNumber);
+
+            if (resultByPhone.success) {
+                console.log(chalk.green(`   -> ¡Cliente encontrado por celular! Transicionando a menú de cliente.`));
+                currentState = { isClient: true, clientData: resultByPhone.data };
                 await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
-                await this.sendWelcomeMessage(chatId, result.data);
+                await this.sendWelcomeMessage(chatId, resultByPhone.data);
                 await this.handleRegisteredClient(chatId, userMessage, currentState);
-            } else {
-                console.log(chalk.yellow(`   -> Nuevo prospecto. Iniciando conversación de ventas con IA...`));
-                currentState = { isClient: false, awaiting: 'IN_CONVERSATION', chatHistory: [] };
+                return;
+            }
+            
+            // --- INICIO DE LA MODIFICACIÓN ---
+            // Se unifica el mensaje de bienvenida para evitar redundancia.
+            console.log(chalk.yellow(`   -> Celular no encontrado. Iniciando proceso de identificación manual...`));
+            const configResult = await firestoreHandler.getVentasConfig();
+            // Usamos un saludo base y le añadimos la instrucción de identificación.
+            const welcomeMessage = configResult.success ? configResult.data.mensajeBienvenida : "¡Hola! Soy Luciana, tu asistente virtual.";
+            const identificationMessage = `${welcomeMessage}\n\nPara poder ayudarte, por favor, responde con tu *DNI/CUIT* si ya eres cliente, o con tu *nombre* si deseas consultar por nuestros servicios.`;
+            
+            await this.client.sendMessage(chatId, identificationMessage);
+            
+            currentState = { step: 'awaiting_identification' };
+            await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
+            return;
+            // --- FIN DE LA MODIFICACIÓN ---
+        }
+
+        switch (currentState.step) {
+            case 'awaiting_identification':
+                const cleanedMessage = userMessage.replace(/[.-]/g, '');
+                
+                if (/^\d{7,8}$/.test(cleanedMessage) || /^\d{11}$/.test(cleanedMessage)) {
+                    console.log(chalk.cyan(`   -> El usuario proveyó un DNI/CUIT (${cleanedMessage}). Verificando en Mikrowisp...`));
+                    const result = await getClientDetails(cleanedMessage);
+
+                    if (result.success) {
+                        console.log(chalk.green(`   -> ¡Cliente encontrado por DNI/CUIT! Transicionando a menú de cliente.`));
+                        currentState = { isClient: true, clientData: result.data };
+                        await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
+                        await this.sendWelcomeMessage(chatId, result.data);
+                        await this.handleRegisteredClient(chatId, "consulta", currentState);
+                    } else {
+                        console.log(chalk.yellow(`   -> DNI/CUIT no encontrado. Transicionando a flujo de ventas.`));
+                        await this.client.sendMessage(chatId, "No pude encontrarte en nuestro sistema con ese número. Me gustaría ayudarte, para eso, ¿podrías decirme tu nombre?");
+                        currentState = { isClient: false, chatHistory: [], prospectData: {}, step: 'sales_get_name' };
+                        await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
+                    }
+                } else {
+                    // --- INICIO DE LA MODIFICACIÓN ---
+                    // Se hace la transición al flujo de ventas más inteligente.
+                    console.log(chalk.yellow(`   -> El usuario proveyó un nombre. Iniciando flujo de ventas...`));
+                    currentState = { isClient: false, chatHistory: [], prospectData: { name: userMessage } };
+                    // Creamos el historial inicial para la IA.
+                    currentState.chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+                    
+                    // Le pedimos a la IA que salude al usuario por su nombre y continúe la conversación.
+                    const initialSalesMessage = `¡Un gusto, ${userMessage}! 😊 Cuéntame, ¿en qué te puedo ayudar hoy?`;
+                    currentState.chatHistory.push({ role: 'model', parts: [{ text: initialSalesMessage }] });
+                    
+                    await this.client.sendMessage(chatId, initialSalesMessage);
+                    await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
+                    // Ya no llamamos a handleNewProspect aquí, esperamos la siguiente respuesta del cliente.
+                    // --- FIN DE LA MODIFICACIÓN ---
+                }
+                break;
+
+            case 'sales_get_name':
+                currentState = { isClient: false, chatHistory: [], prospectData: { name: userMessage } };
                 await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                 await this.handleNewProspect(chatId, userMessage, currentState);
-            }
-        } else {
-            if (currentState.isClient) {
-                await this.handleRegisteredClient(chatId, userMessage, currentState);
-            } else {
-                await this.handleNewProspect(chatId, userMessage, currentState);
-            }
+                break;
+
+            default:
+                if (currentState.isClient) {
+                    await this.handleRegisteredClient(chatId, userMessage, currentState);
+                } else {
+                    await this.handleNewProspect(chatId, userMessage, currentState);
+                }
+                break;
         }
     }
 
@@ -132,45 +195,82 @@ class WhatsAppClient extends EventEmitter {
     }
 
     async handleNewProspect(chatId, userMessage, currentState) {
+        if (currentState.awaiting_sales_confirmation) {
+            console.log(chalk.cyan(`   -> Analizando respuesta de confirmación: "${userMessage}"`));
+            const intencion = await iaHandler.analizarConfirmacion(userMessage);
+
+            if (intencion === 'SI') {
+                console.log(chalk.green.bold(`   -> IA detectó intención AFIRMATIVA. Notificando a ventas...`));
+                if (SALES_LEADS_GROUP_ID) {
+                    const prospectData = currentState.prospectData || {};
+                    let notification = `*✅ Lead de Venta Confirmado*\n\n`;
+                    notification += `*Cliente:* ${prospectData.name || 'No especificado'}\n`;
+                    notification += `*Número:* ${chatId.replace('@c.us', '')}\n`;
+                    if (prospectData.plan) {
+                        notification += `*Plan Consultado:* ${prospectData.plan}\n`;
+                    }
+                    if (prospectData.address) {
+                        notification += `*Dirección (aprox):* "${prospectData.address}"\n\n`;
+                        notification += `*El cliente ha confirmado su interés. Por favor, contactar.*`;
+                    } else {
+                        notification += `\n*El cliente ha confirmado su interés sin dar una dirección. Por favor, contactar para finalizar y solicitar ubicación.*`;
+                    }
+                    await this.client.sendMessage(SALES_LEADS_GROUP_ID, notification);
+                    await this.client.sendMessage(chatId, `¡Excelente! Un asesor comercial ya recibió tus datos y se comunicará por este mismo chat a la brevedad. ¡Muchas gracias! 👍`);
+                } else {
+                    console.warn(chalk.yellow('⚠️ SALES_LEADS_GROUP_ID no está configurado. No se puede notificar a ventas.'));
+                }
+            } else {
+                console.log(chalk.yellow(`   -> IA detectó intención NEGATIVA.`));
+                await this.client.sendMessage(chatId, `Entendido. Si tenés alguna otra consulta, no dudes en preguntar. ¡Que tengas un buen día!`);
+            }
+            await redisClient.del(`state:${chatId}`);
+            return;
+        }
+
         let chatHistory = currentState.chatHistory || [];
         chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
         
+        if (!currentState.prospectData) currentState.prospectData = {};
+        const nameHint = chatHistory.find(m => m.role === 'model' && m.parts[0].text.toLowerCase().includes('cómo te llamas'));
+        if (nameHint && chatHistory[chatHistory.length - 2] === nameHint) {
+           currentState.prospectData.name = userMessage;
+           console.log(chalk.magenta(`   -> Nombre de prospecto guardado: ${userMessage}`));
+        }
+        const planHint = chatHistory.find(m => m.role === 'model' && m.parts[0].text.includes('Plan '));
+        if (planHint) {
+            const match = planHint.parts[0].text.match(/'(Plan[^']*)'/);
+            if (match && match[1]) {
+                currentState.prospectData.plan = match[1];
+                console.log(chalk.magenta(`   -> Plan consultado guardado: ${match[1]}`));
+            }
+        }
+
         console.log(chalk.cyan(`   -> Enviando historial a Gemini para continuar conversación de ventas...`));
         let aiResponse = await iaHandler.handleSalesConversation(chatHistory);
         
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Se elimina la detección por palabras clave y se implementa la detección por frase secreta.
         const addressDetectionFlag = '[DIRECCION_DETECTADA]';
-        let addressDetected = false;
+        const directCloseFlag = '[CIERRE_DIRECTO]';
 
-        if (aiResponse.includes(addressDetectionFlag)) {
-            addressDetected = true;
-            // Limpiamos la respuesta para que el cliente no vea la frase secreta
-            aiResponse = aiResponse.replace(addressDetectionFlag, '').trim();
+        if (aiResponse.includes(addressDetectionFlag) || aiResponse.includes(directCloseFlag)) {
+            console.log(chalk.yellow(`   -> IA detectó intención de cierre. Poniendo al bot en modo 'espera de confirmación'...`));
+            
+            if (aiResponse.includes(addressDetectionFlag)) {
+                aiResponse = aiResponse.replace(addressDetectionFlag, '').trim();
+                currentState.prospectData.address = userMessage; 
+                console.log(chalk.magenta(`   -> Dirección de prospecto guardada: ${userMessage}`));
+            }
+            if (aiResponse.includes(directCloseFlag)) {
+                aiResponse = aiResponse.replace(directCloseFlag, '').trim();
+            }
+            
+            currentState.awaiting_sales_confirmation = true;
         }
 
         chatHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
         currentState.chatHistory = chatHistory;
         
         await this.client.sendMessage(chatId, aiResponse);
-        
-        if (addressDetected) {
-            console.log(chalk.green(`   -> IA ha detectado una dirección. Notificando a ventas...`));
-            
-            currentState.awaiting = 'ADDRESS_CHECK_IN_PROGRESS';
-
-            if (SALES_LEADS_GROUP_ID) {
-                const prospectName = 'Prospecto'; // Nombre genérico
-                const notification = `*Lead de Venta para Verificar Cobertura* 📍\n\n*Nombre:* ${prospectName}\n*Número:* ${chatId.replace('@c.us', '')}\n*Posible Dirección:* "${userMessage}"\n\nPor favor, verificar y contactar al cliente.`;
-                await this.client.sendMessage(SALES_LEADS_GROUP_ID, notification);
-                await this.client.sendMessage(chatId, `¡Perfecto! Un asesor comercial ya recibió tu dirección y va a confirmar la disponibilidad. Te responderá por este mismo chat a la brevedad. ¡Muchas gracias! 👍`);
-            } else {
-                console.warn(chalk.yellow('⚠️ SALES_LEADS_GROUP_ID no está configurado en .env. No se puede notificar al equipo de ventas.'));
-                await this.client.sendMessage(chatId, `¡Recibido! Estamos procesando tu consulta.`);
-            }
-        }
-        // --- FIN DE LA MODIFICACIÓN ---
-
         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
     }
 
@@ -385,7 +485,7 @@ class WhatsAppClient extends EventEmitter {
                 const media = await agentMessage.downloadMedia();
                 await clientChat.sendMessage(media, { caption: agentMessage.body });
             } else {
-                await this.client.sendMessage(agentMessage.body);
+                await this.client.sendMessage(session.clientChatId, agentMessage.body);
             }
             this.resetInactivityTimeout(session);
         } catch (e) {
