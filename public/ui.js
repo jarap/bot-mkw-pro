@@ -102,9 +102,10 @@ export function initializeUISidebar() {
     menuToggleBtn?.addEventListener('click', () => sidebar.classList.toggle('show'));
 }
 
-// --- INICIO DE LA MODIFICACIÓN ---
-export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig, loadAndRenderVentasConfig) {
-// --- FIN DE LA MODIFICACIÓN ---
+// --- MODIFICADO ---
+// Se añade 'renderCurrentTickets' como un nuevo parámetro.
+// Esta es una función "callback" que se ejecutará al navegar a ciertas pestañas.
+export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig, loadAndRenderVentasConfig, renderCurrentTickets) {
     const navLinks = document.querySelectorAll('.sidebar-nav a');
     const mainSections = document.querySelectorAll('.main-section');
     const settingsGrid = document.querySelector('.settings-grid');
@@ -118,9 +119,7 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
         if (linkToActivate) {
              linkToActivate.parentElement.classList.add('active');
         } else {
-            // --- INICIO DE LA MODIFICACIÓN ---
             const parentTab = ['planes', 'promociones', 'faq', 'ajustes-empresa', 'zonas-cobertura', 'ajustes-bot-venta'].includes(targetId) ? 'ajustes' : null;
-            // --- FIN DE LA MODIFICACIÓN ---
             if (parentTab) {
                 const parentLink = document.querySelector(`.sidebar-nav a[data-target="${parentTab}"]`);
                 parentLink?.parentElement.classList.add('active');
@@ -128,6 +127,14 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
         }
 
         mainSections.forEach(section => section.classList.toggle('active', section.id === targetId));
+
+        // --- MODIFICADO ---
+        // Si el destino es la pestaña de historial, ejecutamos la función de redibujado.
+        if (targetId === 'history') {
+            if (renderCurrentTickets) {
+                renderCurrentTickets();
+            }
+        }
 
         const salesTabs = ['planes', 'promociones', 'faq', 'zonas-cobertura'];
         if (salesTabs.includes(targetId)) {
@@ -138,11 +145,9 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
             loadAndRenderCompanyConfig();
         }
 
-        // --- INICIO DE LA MODIFICACIÓN ---
         if (targetId === 'ajustes-bot-venta') {
             loadAndRenderVentasConfig();
         }
-        // --- FIN DE LA MODIFICACIÓN ---
     }
 
     navLinks.forEach(link => {

@@ -1,7 +1,7 @@
 // public/render.js
 // Módulo para renderizar (dibujar) HTML en el DOM.
 
-function getSentimentHTML(sentiment) {
+export function getSentimentHTML(sentiment) {
     if (!sentiment) {
         return `<span class="sentiment-icon sentiment-neutro"><i class="fas fa-question-circle"></i> N/A</span>`;
     }
@@ -28,8 +28,9 @@ export function renderTickets(tableBody, tickets) {
         const row = tableBody.insertRow();
         const statusClass = (ticket.Estado || 'n/a').toLowerCase().replace(/ /g, '-');
         
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // En lugar de incrustar todo el objeto, solo guardamos el ID del ticket.
+        // --- MODIFICADO ---
+        // Se confirma que el botón 'Ver' solo contenga el ID del ticket en 'data-ticket-id'.
+        // Esto es más limpio y seguro que incrustar todo el objeto de datos.
         row.innerHTML = `
             <td>${ticket.Timestamp || 'N/A'}</td>
             <td>${ticket['Nombre_Cliente'] || 'N/A'}</td>
@@ -38,7 +39,6 @@ export function renderTickets(tableBody, tickets) {
             <td>${getSentimentHTML(ticket.Sentimiento)}</td>
             <td><button class="action-btn-small view-ticket-btn" data-ticket-id="${ticket.ID_Ticket}"><i class="fas fa-eye"></i> Ver</button></td>
         `;
-        // --- FIN DE LA MODIFICACIÓN ---
     });
 }
 

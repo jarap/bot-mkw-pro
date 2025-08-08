@@ -47,6 +47,15 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Fallo en la carga inicial de tickets.", error);
         }
     }
+
+    // --- MODIFICADO ---
+    // Se crea una función específica para volver a dibujar los tickets desde el estado actual.
+    // Esto es más eficiente que volver a llamar a la API cada vez que se navega.
+    function renderCurrentTickets() {
+        if (dom.ticketsTableBody) {
+            render.renderTickets(dom.ticketsTableBody, state.tickets);
+        }
+    }
     
     async function forceReloadSalesData() {
         try {
@@ -162,11 +171,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initializeEventListeners() {
         ui.initializeUISidebar();
-        ui.initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig, loadAndRenderVentasConfig);
+        // --- MODIFICADO ---
+        // Pasamos la nueva función 'renderCurrentTickets' al inicializador de la navegación.
+        ui.initializeUINavigation(
+            forceReloadSalesData, 
+            loadAndRenderCompanyConfig, 
+            loadAndRenderVentasConfig,
+            renderCurrentTickets
+        );
         modals.initializeModals(() => state.salesData, forceReloadSalesData);
 
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Se actualiza el event listener para usar el ID del ticket.
         document.body.addEventListener('click', (e) => {
             const viewButton = e.target.closest('.view-ticket-btn');
             if (viewButton && viewButton.dataset.ticketId) {
@@ -181,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
-        // --- FIN DE LA MODIFICACIÓN ---
 
         dom.connectBtn?.addEventListener('click', () => api.connectBot());
         dom.disconnectBtn?.addEventListener('click', () => api.disconnectBot());

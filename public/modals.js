@@ -46,10 +46,9 @@ export function showCustomAlert(title, text) {
 }
 
 // --- Lógica del Modal de Detalles del Ticket ---
-// --- INICIO DE LA MODIFICACIÓN ---
-// Ahora exportamos esta función para que pueda ser llamada desde main.js
+// --- MODIFICADO ---
+// Se exporta la función 'showTicketModal' para que pueda ser llamada desde otros módulos (como main.js).
 export function showTicketModal(ticket) {
-// --- FIN DE LA MODIFICACIÓN ---
     const overlay = document.getElementById('ticket-modal-overlay');
     if (!overlay) return;
 
@@ -174,10 +173,10 @@ export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
     document.getElementById('close-modal-btn')?.addEventListener('click', hideTicketModal);
     document.getElementById('ticket-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'ticket-modal-overlay') hideTicketModal(); });
     
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // Se elimina el event listener de la tabla de tickets de aquí. Se moverá a main.js
-    // --- FIN DE LA MODIFICACIÓN ---
-
+    // --- MODIFICADO ---
+    // Se elimina el 'event listener' que estaba aquí. Su lógica se ha movido a 'main.js'
+    // para centralizar el manejo de eventos y tener acceso al estado de la aplicación.
+    
     document.getElementById('modal-close-ticket-btn')?.addEventListener('click', (e) => {
         const ticketId = e.target.dataset.ticketId;
         showConfirmationModal('Confirmar Cierre', `¿Estás seguro de que quieres cerrar el ticket ${ticketId}?`, async () => {

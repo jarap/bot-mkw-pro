@@ -9,6 +9,9 @@ const calendarHandler = require('./calendar_handler');
 const firestoreHandler = require('./firestore_handler');
 const iaHandler = require('./ia_handler');
 const redisClient = require('./redisClient');
+// --- MODIFICADO ---
+// Se elimina la siguiente línea porque el módulo 'local_nlp_handler.js' ya no se utiliza.
+// const localNlpHandler = require('./local_nlp_handler');
 
 const supportGroupPool = {};
 const TIMEOUT_MS = 15 * 60 * 1000;
@@ -179,23 +182,17 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // Se reemplaza el clasificador local por el análisis de intención con IA.
     async handleRegisteredClient(chatId, userMessage, currentState) {
-        // Usamos la nueva función de IA para entender la intención.
         const intencion = await iaHandler.analizarIntencionGeneral(userMessage);
         console.log(chalk.cyan(`   -> Intención detectada por IA: ${intencion}`));
 
         if (intencion === 'soporte') {
             await this.createSupportTicket(chatId, userMessage, currentState.clientData);
         } else {
-            // Para 'ventas' o 'pregunta_general', por ahora damos una respuesta estándar.
-            // A futuro, se podría iniciar un flujo de venta o una búsqueda de FAQ aquí.
             const welcomeBackMessage = `¡Hola de nuevo, ${currentState.clientData.nombre}! 😊\n\nRecordá que a través de este chat podés solicitar *soporte técnico* para tu servicio. Si tenés algún problema, no dudes en describirlo y te ayudaremos.`;
             await this.client.sendMessage(chatId, welcomeBackMessage);
         }
     }
-    // --- FIN DE LA MODIFICACIÓN ---
 
     async handleNewProspect(chatId, userMessage, currentState) {
         if (currentState.awaiting_sales_confirmation) {
@@ -418,7 +415,7 @@ class WhatsAppClient extends EventEmitter {
                 throw new Error(`El ID ${triageGroupId} no corresponde a un grupo o el bot no es miembro.`);
             }
 
-            const sentimiento = await iaHandler.analizarSentimiento(userMessage); // Usamos la IA para el sentimiento
+            const sentimiento = await iaHandler.analizarSentimiento(userMessage);
             console.log(chalk.cyan(`   -> Sentimiento detectado por IA: ${sentimiento}`));
 
             let notification = `*🚨 Nuevo Ticket de Soporte 🚨*\n\n*Cliente:* ${clientName}\n*Sentimiento:* ${sentimiento}\n*Mensaje:* "${userMessage}"\n\n*Para tomar este caso, responde a ESTE mensaje.*`;
