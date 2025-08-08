@@ -13,13 +13,18 @@ const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// --- INICIO DE LA MODIFICACIÓN ---
+// Se cambia la configuración de almacenamiento para usar un nombre de archivo fijo.
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadsDir),
     filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+        // En lugar de un nombre único, usamos siempre "logo-empresa" manteniendo la extensión original.
+        cb(null, 'logo-empresa' + path.extname(file.originalname));
     }
 });
+// --- FIN DE LA MODIFICACIÓN ---
+
 const upload = multer({ storage: storage });
 
 function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClient) {
@@ -111,7 +116,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // --- INICIO DE LA MODIFICACIÓN ---
     app.get('/api/config/ventas', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getVentasConfig();
         res.status(result.success ? 200 : 500).json(result);
@@ -120,7 +124,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         const result = await firestoreHandler.updateVentasConfig(req.body);
         res.status(result.success ? 200 : 500).json(result);
     });
-    // --- FIN DE LA MODIFICACIÓN ---
 
     app.post('/api/data/:collection', checkAuth, async (req, res) => {
         const { collection } = req.params;
