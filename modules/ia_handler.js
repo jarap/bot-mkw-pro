@@ -62,14 +62,12 @@ async function handleSalesConversation(chatHistory) {
             });
         }
         
-        // --- INICIO DE LA MODIFICACIÓN ---
         const reglasConversacion = (ventasConfig.reglasConversacion || '1. Sé amable.') + 
             `\n\n**REGLAS DE CIERRE (MUY IMPORTANTE):**` +
             `\n\n**ESCENARIO 1: El cliente da su dirección.**` +
             `\nSi el último MENSAJE DEL USUARIO contiene una dirección (calle, barrio, etc.), tu respuesta debe confirmar la cobertura, presentar la oferta, terminar con una pregunta de confirmación (ej: '¿Quieres que un asesor se ponga en contacto?') Y añadir la frase secreta: [DIRECCION_DETECTADA].` +
             `\n\n**ESCENARIO 2: El cliente quiere contratar directamente.**` +
             `\nSi el cliente NO ha dado una dirección, pero expresa un deseo claro de contratar o hablar con un asesor (ej: "quiero contratar", "cómo hago?", "pasame con un vendedor", "metele pata"), tu respuesta debe ser ÚNICAMENTE la pregunta de confirmación (ej: 'Perfecto. ¿Quieres que un asesor comercial se ponga en contacto contigo para darte todos los detalles y finalizar la contratación?') Y añadir la frase secreta: [CIERRE_DIRECTO].`;
-        // --- FIN DE LA MODIFICACIÓN ---
 
         const systemPrompt = `${ventasConfig.mensajeBienvenida || 'Eres I-Bot, un asistente de ventas.'}
         
@@ -133,6 +131,36 @@ async function analizarConfirmacion(userMessage) {
     }
 }
 
+// --- INICIO DE LA MODIFICACIÓN ---
+/**
+ * Analiza la intención general de un mensaje de un cliente existente.
+ * @param {string} userMessage - El mensaje del cliente.
+ * @returns {Promise<string>} Devuelve 'soporte', 'ventas', o 'pregunta_general'.
+ */
+async function analizarIntencionGeneral(userMessage) {
+    const prompt = `Analiza el siguiente mensaje de un cliente a su proveedor de internet. Tu tarea es clasificar la intención principal del mensaje en una de tres categorías. Responde únicamente con una de estas tres palabras: "soporte", "ventas", "pregunta_general".
+
+    - "soporte": si el cliente reporta un problema, una falla, que el servicio no funciona, anda lento, etc. (Ej: "no tengo internet", "anda como el culo", "se me cortó el servicio").
+    - "ventas": si el cliente pregunta por nuevos planes, cambiar su plan actual, costos, o servicios adicionales. (Ej: "¿qué otros planes tienen?", "¿puedo subir la velocidad?").
+    - "pregunta_general": para cualquier otra cosa, como saludos, agradecimientos, o preguntas que no son ni de soporte ni de ventas. (Ej: "hola", "muchas gracias", "¿hasta qué hora están?").
+
+    Mensaje del cliente: "${userMessage}"`;
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text().trim().toLowerCase();
+
+        if (['soporte', 'ventas'].includes(text)) {
+            return text;
+        }
+        return 'pregunta_general';
+    } catch (error) {
+        console.error(chalk.red('❌ Error al analizar intención general con Gemini:'), error);
+        return 'pregunta_general'; // Por seguridad, si falla, no crea un ticket.
+    }
+}
+// --- FIN DE LA MODIFICACIÓN ---
+
 async function analizarSentimiento(userMessage) {
     const prompt = `Analiza el sentimiento del siguiente mensaje de un cliente a su proveedor de internet. Responde únicamente con una de estas cuatro palabras: "enojado", "frustrado", "neutro", "contento". Mensaje: "${userMessage}"`;
     try {
@@ -152,5 +180,6 @@ async function analizarSentimiento(userMessage) {
 module.exports = {
     handleSalesConversation,
     analizarConfirmacion,
+    analizarIntencionGeneral, // Exportamos la nueva función
     analizarSentimiento,
 };

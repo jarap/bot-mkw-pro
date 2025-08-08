@@ -146,28 +146,21 @@ class WhatsAppClient extends EventEmitter {
                         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                     }
                 } else {
-                    // --- INICIO DE LA MODIFICACIÓN ---
-                    // Se corrige la transición de estado para que sea fluida.
                     console.log(chalk.yellow(`   -> El usuario proveyó un nombre. Iniciando flujo de ventas...`));
                     
-                    // Preparamos el estado para el flujo de ventas, eliminando el 'step' para pasar al default.
                     currentState = { 
                         isClient: false, 
                         chatHistory: [], 
                         prospectData: { name: userMessage } 
                     };
                     
-                    // Creamos el historial inicial de la conversación.
-                    currentState.chatHistory.push({ role: 'user', parts: [{ text: "Hola" }] }); // Simula un saludo inicial.
+                    currentState.chatHistory.push({ role: 'user', parts: [{ text: "Hola" }] });
                     currentState.chatHistory.push({ role: 'model', parts: [{ text: `Hola, me llamo ${userMessage}` }] });
                     
-                    // Saludamos al usuario por su nombre y le preguntamos en qué podemos ayudarlo.
                     const initialSalesMessage = `¡Un gusto, ${userMessage}! 😊 Cuéntame, ¿en qué te puedo ayudar hoy?`;
                     await this.client.sendMessage(chatId, initialSalesMessage);
                     
-                    // Guardamos el nuevo estado y esperamos la siguiente respuesta del cliente.
                     await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
-                    // --- FIN DE LA MODIFICACIÓN ---
                 }
                 break;
 
@@ -187,15 +180,23 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Se reemplaza el clasificador local por el análisis de intención con IA.
     async handleRegisteredClient(chatId, userMessage, currentState) {
-        const intencion = localNlpHandler.clasificarIntencionLocal(userMessage);
-        if (intencion === 'soporte' || userMessage.toLowerCase().includes('ayuda')) {
+        // Usamos la nueva función de IA para entender la intención.
+        const intencion = await iaHandler.analizarIntencionGeneral(userMessage);
+        console.log(chalk.cyan(`   -> Intención detectada por IA: ${intencion}`));
+
+        if (intencion === 'soporte') {
             await this.createSupportTicket(chatId, userMessage, currentState.clientData);
         } else {
+            // Para 'ventas' o 'pregunta_general', por ahora damos una respuesta estándar.
+            // A futuro, se podría iniciar un flujo de venta o una búsqueda de FAQ aquí.
             const welcomeBackMessage = `¡Hola de nuevo, ${currentState.clientData.nombre}! 😊\n\nRecordá que a través de este chat podés solicitar *soporte técnico* para tu servicio. Si tenés algún problema, no dudes en describirlo y te ayudaremos.`;
             await this.client.sendMessage(chatId, welcomeBackMessage);
         }
     }
+    // --- FIN DE LA MODIFICACIÓN ---
 
     async handleNewProspect(chatId, userMessage, currentState) {
         if (currentState.awaiting_sales_confirmation) {
@@ -418,8 +419,8 @@ class WhatsAppClient extends EventEmitter {
                 throw new Error(`El ID ${triageGroupId} no corresponde a un grupo o el bot no es miembro.`);
             }
 
-            const sentimiento = localNlpHandler.analizarSentimientoLocal(userMessage);
-            console.log(chalk.cyan(`   -> Sentimiento local detectado: ${sentimiento}`));
+            const sentimiento = await iaHandler.analizarSentimiento(userMessage); // Usamos la IA para el sentimiento
+            console.log(chalk.cyan(`   -> Sentimiento detectado por IA: ${sentimiento}`));
 
             let notification = `*🚨 Nuevo Ticket de Soporte 🚨*\n\n*Cliente:* ${clientName}\n*Sentimiento:* ${sentimiento}\n*Mensaje:* "${userMessage}"\n\n*Para tomar este caso, responde a ESTE mensaje.*`;
             
