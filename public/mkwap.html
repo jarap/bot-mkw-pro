@@ -137,12 +137,10 @@
                                     <div class="settings-icon"><i class="fas fa-building"></i></div>
                                     <span>Ajustes de Empresa</span>
                                 </a>
-                                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
                                 <a href="#" class="settings-card" data-target="ajustes-bot-venta">
                                     <div class="settings-icon"><i class="fas fa-robot"></i></div>
                                     <span>Ajustes Bot de Venta</span>
                                 </a>
-                                <!-- --- FIN DE LA MODIFICACIÓN --- -->
                                 <a href="#" class="settings-card" data-target="planes">
                                     <div class="settings-icon"><i class="fas fa-wifi"></i></div>
                                     <span>Planes de Internet</span>
@@ -157,14 +155,19 @@
                                 </a>
                                 <a href="#" class="settings-card" data-target="faq">
                                     <div class="settings-icon"><i class="fas fa-question-circle"></i></div>
-                                    <span>Preguntas Frecuentes</span>
+                                    <span>FAQs de Ventas</span>
                                 </a>
+                                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
+                                <a href="#" class="settings-card" data-target="faq-soporte">
+                                    <div class="settings-icon"><i class="fas fa-headset"></i></div>
+                                    <span>FAQs de Soporte</span>
+                                </a>
+                                <!-- --- FIN DE LA MODIFICACIÓN --- -->
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
                 <div id="ajustes-bot-venta" class="main-section">
                     <div class="card">
                         <div class="card-header">
@@ -176,7 +179,6 @@
                         </div>
                     </div>
                 </div>
-                <!-- --- FIN DE LA MODIFICACIÓN --- -->
 
                 <div id="zonas-cobertura" class="main-section">
                     <div class="card">
@@ -266,7 +268,7 @@
                 </div>
                 <div id="faq" class="main-section">
                      <div class="card">
-                        <div class="card-header"><h3>Preguntas Frecuentes</h3>
+                        <div class="card-header"><h3>Preguntas Frecuentes de Ventas</h3>
                             <div>
                                 <button class="action-btn-small" id="add-faq-btn"><i class="fas fa-plus"></i> Añadir Pregunta</button>
                                 <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
@@ -280,6 +282,24 @@
                         </div>
                     </div>
                 </div>
+                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
+                <div id="faq-soporte" class="main-section">
+                     <div class="card">
+                        <div class="card-header"><h3>Preguntas Frecuentes de Soporte</h3>
+                            <div>
+                                <button class="action-btn-small" id="add-support-faq-btn"><i class="fas fa-plus"></i> Añadir Pregunta</button>
+                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Pregunta</th><th>Respuesta</th><th>Acciones</th></tr></thead>
+                                <tbody id="support-faq-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- --- FIN DE LA MODIFICACIÓN --- -->
                 <div id="ajustes-empresa" class="main-section">
                     <div class="card">
                         <div class="card-header"><h3>Ajustes de Empresa</h3>

@@ -46,8 +46,6 @@ export function showCustomAlert(title, text) {
 }
 
 // --- Lógica del Modal de Detalles del Ticket ---
-// --- MODIFICADO ---
-// Se exporta la función 'showTicketModal' para que pueda ser llamada desde otros módulos (como main.js).
 export function showTicketModal(ticket) {
     const overlay = document.getElementById('ticket-modal-overlay');
     if (!overlay) return;
@@ -74,7 +72,10 @@ function hideTicketModal() {
 }
 
 // --- Lógica del Modal de Ventas (Añadir/Editar) ---
-function openSalesModal(type, data = {}, salesData) {
+// --- INICIO DE LA MODIFICACIÓN ---
+// Se ha modificado esta función para que acepte el tipo 'soporteFAQ'.
+export function openSalesModal(type, data = {}, salesData) {
+// --- FIN DE LA MODIFICACIÓN ---
     const overlay = document.getElementById('sales-modal-overlay');
     const titleEl = document.getElementById('sales-modal-title');
     const formFieldsEl = document.getElementById('sales-form-fields');
@@ -139,12 +140,16 @@ function openSalesModal(type, data = {}, salesData) {
                 </div>
             `;
             break;
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se agrupan los casos para reutilizar el mismo formulario.
         case 'preguntasFrecuentes':
+        case 'soporteFAQ':
             formHTML = `
                 <input type="text" name="pregunta" placeholder="Pregunta del cliente" value="${data.pregunta || ''}" required>
                 <textarea name="respuesta" rows="4" placeholder="Respuesta oficial">${data.respuesta || ''}</textarea>
             `;
             break;
+        // --- FIN DE LA MODIFICACIÓN ---
         case 'zona':
             titleEl.textContent = `${data.isEditing ? 'Editar' : 'Añadir'} Zona de Cobertura`;
             formHTML = `
@@ -172,10 +177,6 @@ function closeSalesModal() {
 export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
     document.getElementById('close-modal-btn')?.addEventListener('click', hideTicketModal);
     document.getElementById('ticket-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'ticket-modal-overlay') hideTicketModal(); });
-    
-    // --- MODIFICADO ---
-    // Se elimina el 'event listener' que estaba aquí. Su lógica se ha movido a 'main.js'
-    // para centralizar el manejo de eventos y tener acceso al estado de la aplicación.
     
     document.getElementById('modal-close-ticket-btn')?.addEventListener('click', (e) => {
         const ticketId = e.target.dataset.ticketId;

@@ -9,9 +9,6 @@ const calendarHandler = require('./calendar_handler');
 const firestoreHandler = require('./firestore_handler');
 const iaHandler = require('./ia_handler');
 const redisClient = require('./redisClient');
-// --- MODIFICADO ---
-// Se elimina la siguiente línea porque el módulo 'local_nlp_handler.js' ya no se utiliza.
-// const localNlpHandler = require('./local_nlp_handler');
 
 const supportGroupPool = {};
 const TIMEOUT_MS = 15 * 60 * 1000;
@@ -182,17 +179,44 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Se reestructura esta función para manejar las 3 intenciones principales.
     async handleRegisteredClient(chatId, userMessage, currentState) {
         const intencion = await iaHandler.analizarIntencionGeneral(userMessage);
-        console.log(chalk.cyan(`   -> Intención detectada por IA: ${intencion}`));
+        console.log(chalk.cyan(`   -> Intención detectada por IA para cliente existente: ${intencion}`));
 
-        if (intencion === 'soporte') {
-            await this.createSupportTicket(chatId, userMessage, currentState.clientData);
-        } else {
-            const welcomeBackMessage = `¡Hola de nuevo, ${currentState.clientData.nombre}! 😊\n\nRecordá que a través de este chat podés solicitar *soporte técnico* para tu servicio. Si tenés algún problema, no dudes en describirlo y te ayudaremos.`;
-            await this.client.sendMessage(chatId, welcomeBackMessage);
+        switch (intencion) {
+            case 'soporte':
+                await this.createSupportTicket(chatId, userMessage, currentState.clientData);
+                break;
+            
+            case 'ventas':
+                console.log(chalk.cyan(`   -> Cliente existente con intención de ventas. Reutilizando flujo de prospecto...`));
+                // Creamos un estado temporal para que la lógica de ventas funcione.
+                const salesState = {
+                    isClient: false, // Lo tratamos como prospecto para la lógica de ventas
+                    chatHistory: [{ role: 'user', parts: [{ text: userMessage }] }],
+                    prospectData: { name: currentState.clientData.nombre }
+                };
+                // Llamamos a la función que maneja a los nuevos prospectos, pasándole el mensaje actual.
+                await this.handleNewProspect(chatId, userMessage, salesState);
+                break;
+
+            case 'pregunta_general':
+                console.log(chalk.cyan(`   -> Cliente existente con pregunta general. Consultando FAQs de Soporte...`));
+                // Usamos la nueva función para responder desde la base de conocimiento de soporte.
+                const faqResponse = await iaHandler.answerSupportQuestion(userMessage);
+                await this.client.sendMessage(chatId, faqResponse);
+                break;
+
+            default:
+                // Si la intención no es clara, se mantiene un mensaje por defecto.
+                const welcomeBackMessage = `¡Hola de nuevo, ${currentState.clientData.nombre}! 😊\n\nRecordá que a través de este chat podés solicitar *soporte técnico* para tu servicio. Si tenés algún problema, no dudes en describirlo y te ayudaremos.`;
+                await this.client.sendMessage(chatId, welcomeBackMessage);
+                break;
         }
     }
+    // --- FIN DE LA MODIFICACIÓN ---
 
     async handleNewProspect(chatId, userMessage, currentState) {
         if (currentState.awaiting_sales_confirmation) {

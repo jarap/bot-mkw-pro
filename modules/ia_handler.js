@@ -2,7 +2,10 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAuth } = require('google-auth-library');
 const chalk = require('chalk');
-const { db } = require('./firestore_handler');
+// --- INICIO DE LA MODIFICACIÓN ---
+// Importamos la nueva función 'getSupportFaqs' además de 'db'.
+const { db, getSupportFaqs } = require('./firestore_handler');
+// --- FIN DE LA MODIFICACIÓN ---
 
 const auth = new GoogleAuth({
     keyFilename: './firebase-credentials.json',
@@ -131,12 +134,6 @@ async function analizarConfirmacion(userMessage) {
     }
 }
 
-// --- INICIO DE LA MODIFICACIÓN ---
-/**
- * Analiza la intención general de un mensaje de un cliente existente.
- * @param {string} userMessage - El mensaje del cliente.
- * @returns {Promise<string>} Devuelve 'soporte', 'ventas', o 'pregunta_general'.
- */
 async function analizarIntencionGeneral(userMessage) {
     const prompt = `Analiza el siguiente mensaje de un cliente a su proveedor de internet. Tu tarea es clasificar la intención principal del mensaje en una de tres categorías. Responde únicamente con una de estas tres palabras: "soporte", "ventas", "pregunta_general".
 
@@ -156,10 +153,9 @@ async function analizarIntencionGeneral(userMessage) {
         return 'pregunta_general';
     } catch (error) {
         console.error(chalk.red('❌ Error al analizar intención general con Gemini:'), error);
-        return 'pregunta_general'; // Por seguridad, si falla, no crea un ticket.
+        return 'pregunta_general';
     }
 }
-// --- FIN DE LA MODIFICACIÓN ---
 
 async function analizarSentimiento(userMessage) {
     const prompt = `Analiza el sentimiento del siguiente mensaje de un cliente a su proveedor de internet. Responde únicamente con una de estas cuatro palabras: "enojado", "frustrado", "neutro", "contento". Mensaje: "${userMessage}"`;
@@ -177,9 +173,55 @@ async function analizarSentimiento(userMessage) {
     }
 }
 
+// --- INICIO DE LA MODIFICACIÓN ---
+/**
+ * Responde una pregunta general de un cliente usando las FAQs de soporte.
+ * @param {string} userMessage - El mensaje del cliente.
+ * @returns {Promise<string>} La respuesta generada por la IA.
+ */
+async function answerSupportQuestion(userMessage) {
+    try {
+        console.log(chalk.cyan('   -> Buscando respuesta en FAQs de Soporte...'));
+        const supportFaqs = await getSupportFaqs();
+
+        if (supportFaqs.length === 0) {
+            console.log(chalk.yellow('   -> No se encontraron FAQs de soporte en la base de datos.'));
+            return "Lo siento, no pude encontrar una respuesta a tu pregunta en este momento. Un agente revisará tu consulta.";
+        }
+
+        let knowledgeString = "Preguntas Frecuentes de Soporte:\n";
+        supportFaqs.forEach(faq => {
+            knowledgeString += `- P: ${faq.pregunta}\n  R: ${faq.respuesta}\n`;
+        });
+
+        const systemPrompt = `Eres I-Bot, un asistente virtual de soporte técnico. Tu única tarea es responder la pregunta del cliente basándote estrictamente en la siguiente lista de Preguntas Frecuentes. Si la pregunta del cliente no se puede responder con la información proporcionada, debes responder exactamente: "No encontré una respuesta para tu consulta. Un agente la revisará para ayudarte."
+
+        **Base de Conocimiento (ÚNICA fuente de verdad):**
+        ---
+        ${knowledgeString}
+        ---
+
+        **Pregunta del Cliente:**
+        ${userMessage}
+        `;
+
+        const result = await model.generateContent(systemPrompt);
+        const response = await result.response;
+        return response.text().trim();
+
+    } catch (error) {
+        console.error(chalk.red('❌ Error en answerSupportQuestion con Gemini:'), error);
+        return "Tuvimos un problema al procesar tu consulta. Un agente la revisará a la brevedad.";
+    }
+}
+// --- FIN DE LA MODIFICACIÓN ---
+
 module.exports = {
     handleSalesConversation,
     analizarConfirmacion,
-    analizarIntencionGeneral, // Exportamos la nueva función
+    analizarIntencionGeneral,
     analizarSentimiento,
+    // --- INICIO DE LA MODIFICACIÓN ---
+    answerSupportQuestion, // Exportamos la nueva función
+    // --- FIN DE LA MODIFICACIÓN ---
 };

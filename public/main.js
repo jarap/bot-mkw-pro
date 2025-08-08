@@ -12,7 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let state = {
         tickets: [],
-        salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] } },
+        // --- INICIO DE LA MODIFICACIÓN ---
+        salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] }, soporteFaqs: [] },
+        // --- FIN DE LA MODIFICACIÓN ---
         companyConfig: {},
         ventasConfig: {},
         activeSessions: []
@@ -24,6 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
         planesTableBody: document.getElementById('planes-table-body'),
         promosTableBody: document.getElementById('promos-table-body'),
         faqTableBody: document.getElementById('faq-table-body'),
+        // --- INICIO DE LA MODIFICACIÓN ---
+        supportFaqTableBody: document.getElementById('support-faq-table-body'),
+        addSupportFaqBtn: document.getElementById('add-support-faq-btn'),
+        // --- FIN DE LA MODIFICACIÓN ---
         companyConfigForm: document.getElementById('company-config-form'),
         ventasConfigForm: document.getElementById('ventas-config-form'),
         zonasTableBody: document.getElementById('zonas-table-body'),
@@ -47,10 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Fallo en la carga inicial de tickets.", error);
         }
     }
-
-    // --- MODIFICADO ---
-    // Se crea una función específica para volver a dibujar los tickets desde el estado actual.
-    // Esto es más eficiente que volver a llamar a la API cada vez que se navega.
+    
     function renderCurrentTickets() {
         if (dom.ticketsTableBody) {
             render.renderTickets(dom.ticketsTableBody, state.tickets);
@@ -67,6 +70,9 @@ document.addEventListener('DOMContentLoaded', () => {
             render.renderPromos(dom.promosTableBody, state.salesData.promociones);
             render.renderFaqs(dom.faqTableBody, state.salesData.preguntasFrecuentes);
             render.renderZonasCobertura(dom.zonasTableBody, state.salesData.zonasCobertura);
+            // --- INICIO DE LA MODIFICACIÓN ---
+            render.renderSupportFaqs(dom.supportFaqTableBody, state.salesData.soporteFaqs);
+            // --- FIN DE LA MODIFICACIÓN ---
 
         } catch (error) {
             console.error("Fallo en la recarga de datos de ventas.", error);
@@ -171,15 +177,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initializeEventListeners() {
         ui.initializeUISidebar();
-        // --- MODIFICADO ---
-        // Pasamos la nueva función 'renderCurrentTickets' al inicializador de la navegación.
         ui.initializeUINavigation(
             forceReloadSalesData, 
             loadAndRenderCompanyConfig, 
             loadAndRenderVentasConfig,
             renderCurrentTickets
         );
-        modals.initializeModals(() => state.salesData, forceReloadSalesData);
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se pasa la nueva función openSalesModal al inicializador de modales.
+        modals.initializeModals(modals.openSalesModal, forceReloadSalesData);
+        // --- FIN DE LA MODIFICACIÓN ---
 
         document.body.addEventListener('click', (e) => {
             const viewButton = e.target.closest('.view-ticket-btn');
@@ -366,6 +373,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             }
         });
+
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se añade el event listener para el nuevo botón "Añadir Pregunta" de las FAQs de Soporte.
+        dom.addSupportFaqBtn?.addEventListener('click', () => {
+            modals.openSalesModal('soporteFAQ', {}, state.salesData);
+        });
+        // --- FIN DE LA MODIFICACIÓN ---
 
         document.body.addEventListener('click', (e) => {
             if (!e.target.closest('#sales-modal-overlay')) return;

@@ -102,9 +102,6 @@ export function initializeUISidebar() {
     menuToggleBtn?.addEventListener('click', () => sidebar.classList.toggle('show'));
 }
 
-// --- MODIFICADO ---
-// Se añade 'renderCurrentTickets' como un nuevo parámetro.
-// Esta es una función "callback" que se ejecutará al navegar a ciertas pestañas.
 export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig, loadAndRenderVentasConfig, renderCurrentTickets) {
     const navLinks = document.querySelectorAll('.sidebar-nav a');
     const mainSections = document.querySelectorAll('.main-section');
@@ -119,7 +116,10 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
         if (linkToActivate) {
              linkToActivate.parentElement.classList.add('active');
         } else {
-            const parentTab = ['planes', 'promociones', 'faq', 'ajustes-empresa', 'zonas-cobertura', 'ajustes-bot-venta'].includes(targetId) ? 'ajustes' : null;
+            // --- INICIO DE LA MODIFICACIÓN ---
+            // Se añade 'faq-soporte' a la lista de pestañas que dependen de 'Ajustes'.
+            const parentTab = ['planes', 'promociones', 'faq', 'ajustes-empresa', 'zonas-cobertura', 'ajustes-bot-venta', 'faq-soporte'].includes(targetId) ? 'ajustes' : null;
+            // --- FIN DE LA MODIFICACIÓN ---
             if (parentTab) {
                 const parentLink = document.querySelector(`.sidebar-nav a[data-target="${parentTab}"]`);
                 parentLink?.parentElement.classList.add('active');
@@ -128,15 +128,16 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
 
         mainSections.forEach(section => section.classList.toggle('active', section.id === targetId));
 
-        // --- MODIFICADO ---
-        // Si el destino es la pestaña de historial, ejecutamos la función de redibujado.
         if (targetId === 'history') {
             if (renderCurrentTickets) {
                 renderCurrentTickets();
             }
         }
 
-        const salesTabs = ['planes', 'promociones', 'faq', 'zonas-cobertura'];
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se añade 'faq-soporte' a la lista de pestañas que fuerzan la recarga de datos.
+        const salesTabs = ['planes', 'promociones', 'faq', 'zonas-cobertura', 'faq-soporte'];
+        // --- FIN DE LA MODIFICACIÓN ---
         if (salesTabs.includes(targetId)) {
             forceReloadSalesData();
         }

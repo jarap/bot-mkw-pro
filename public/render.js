@@ -28,9 +28,6 @@ export function renderTickets(tableBody, tickets) {
         const row = tableBody.insertRow();
         const statusClass = (ticket.Estado || 'n/a').toLowerCase().replace(/ /g, '-');
         
-        // --- MODIFICADO ---
-        // Se confirma que el botón 'Ver' solo contenga el ID del ticket en 'data-ticket-id'.
-        // Esto es más limpio y seguro que incrustar todo el objeto de datos.
         row.innerHTML = `
             <td>${ticket.Timestamp || 'N/A'}</td>
             <td>${ticket['Nombre_Cliente'] || 'N/A'}</td>
@@ -171,6 +168,34 @@ export function renderFaqs(tableBody, faqs) {
     });
 }
 
+// --- INICIO DE LA MODIFICACIÓN ---
+/**
+ * Dibuja la tabla de FAQs de Soporte en el DOM.
+ * @param {HTMLElement} tableBody - El elemento <tbody> de la tabla.
+ * @param {Array} faqs - El array de objetos de FAQs de soporte.
+ */
+export function renderSupportFaqs(tableBody, faqs) {
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    if (!faqs || faqs.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="3">No hay preguntas frecuentes de soporte definidas.</td></tr>';
+        return;
+    }
+    (faqs || []).forEach(faq => {
+        const row = tableBody.insertRow();
+        const sanitizedItem = JSON.stringify(faq).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+        row.innerHTML = `
+            <td>${faq.pregunta || 'N/A'}</td>
+            <td>${faq.respuesta || 'N/A'}</td>
+            <td>
+                <button class="action-btn-small edit-btn" data-type="soporteFAQ" data-item='${sanitizedItem}'><i class="fas fa-edit"></i></button>
+                <button class="action-btn-small delete-btn" data-type="soporteFAQ" data-id="${faq.id}"><i class="fas fa-trash"></i></button>
+            </td>
+        `;
+    });
+}
+// --- FIN DE LA MODIFICACIÓN ---
+
 export function renderCompanyConfigForm(form, config) {
     if (!form) return;
     const fieldLabels = {
@@ -262,3 +287,4 @@ export function renderVentasConfigForm(form, config) {
         <button type="submit">Guardar Ajustes del Bot</button>
     `;
 }
+

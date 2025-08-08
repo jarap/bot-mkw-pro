@@ -22,6 +22,7 @@ try {
     const knowledgeCollection = db.collection('knowledge');
     const configCollection = db.collection('configuracion');
     const zonasCollection = db.collection('zonasCobertura');
+    const soporteFaqsCollection = db.collection('soporteFAQ');
 
     async function logTicket(ticketData) {
         try {
@@ -68,14 +69,17 @@ try {
         }
     }
 
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Ahora esta función obtiene TODOS los datos necesarios para el panel de Ajustes.
     async function getSalesData() {
         try {
-            const [planesSnap, promosSnap, faqsSnap, configSnap, zonasSnap] = await Promise.all([
+            const [planesSnap, promosSnap, faqsSnap, configSnap, zonasSnap, soporteFaqsSnap] = await Promise.all([
                 planesCollection.orderBy('precioMensual').get(),
                 promosCollection.get(),
                 faqsCollection.get(),
                 knowledgeCollection.doc('configuracionGeneral').get(),
-                zonasCollection.limit(1).get()
+                zonasCollection.limit(1).get(),
+                soporteFaqsCollection.get() // Se añade la nueva colección
             ]);
 
             let zonasDoc = null;
@@ -87,6 +91,7 @@ try {
                 planes: planesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 promociones: promosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 preguntasFrecuentes: faqsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
+                soporteFaqs: soporteFaqsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })), // Se añaden los datos
                 configuracionGeneral: configSnap.exists ? { id: configSnap.id, ...configSnap.data() } : {},
                 zonasCobertura: zonasDoc ? { id: zonasDoc.id, ...zonasDoc.data() } : { id: null, listado: [] }
             };
@@ -97,6 +102,7 @@ try {
             return { success: false, message: 'No se pudieron obtener los datos de ventas.' };
         }
     }
+    // --- FIN DE LA MODIFICACIÓN ---
 
     async function addItem(collectionName, data) {
         try {
@@ -151,7 +157,6 @@ try {
         }
     }
 
-    // --- INICIO DE LA MODIFICACIÓN ---
     async function getVentasConfig() {
         try {
             const docRef = configCollection.doc('ventas');
@@ -177,7 +182,19 @@ try {
             return { success: false, message: 'Error al guardar la configuración de ventas.' };
         }
     }
-    // --- FIN DE LA MODIFICACIÓN ---
+
+    async function getSupportFaqs() {
+        try {
+            const snapshot = await soporteFaqsCollection.get();
+            if (snapshot.empty) {
+                return [];
+            }
+            return snapshot.docs.map(doc => doc.data());
+        } catch (error) {
+            console.error(chalk.red('❌ Error al obtener las FAQs de soporte:'), error);
+            return [];
+        }
+    }
 
     module.exports = {
         db,
@@ -191,10 +208,9 @@ try {
         deleteItem,
         getCompanyConfig,
         updateCompanyConfig,
-        // --- INICIO DE LA MODIFICACIÓN ---
         getVentasConfig,
-        updateVentasConfig
-        // --- FIN DE LA MODIFICACIÓN ---
+        updateVentasConfig,
+        getSupportFaqs
     };
 
 } catch (error) {
