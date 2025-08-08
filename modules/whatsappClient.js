@@ -113,11 +113,8 @@ class WhatsAppClient extends EventEmitter {
                 return;
             }
             
-            // --- INICIO DE LA MODIFICACIÓN ---
-            // Se unifica el mensaje de bienvenida para evitar redundancia.
             console.log(chalk.yellow(`   -> Celular no encontrado. Iniciando proceso de identificación manual...`));
             const configResult = await firestoreHandler.getVentasConfig();
-            // Usamos un saludo base y le añadimos la instrucción de identificación.
             const welcomeMessage = configResult.success ? configResult.data.mensajeBienvenida : "¡Hola! Soy Luciana, tu asistente virtual.";
             const identificationMessage = `${welcomeMessage}\n\nPara poder ayudarte, por favor, responde con tu *DNI/CUIT* si ya eres cliente, o con tu *nombre* si deseas consultar por nuestros servicios.`;
             
@@ -126,7 +123,6 @@ class WhatsAppClient extends EventEmitter {
             currentState = { step: 'awaiting_identification' };
             await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
             return;
-            // --- FIN DE LA MODIFICACIÓN ---
         }
 
         switch (currentState.step) {
@@ -151,19 +147,26 @@ class WhatsAppClient extends EventEmitter {
                     }
                 } else {
                     // --- INICIO DE LA MODIFICACIÓN ---
-                    // Se hace la transición al flujo de ventas más inteligente.
+                    // Se corrige la transición de estado para que sea fluida.
                     console.log(chalk.yellow(`   -> El usuario proveyó un nombre. Iniciando flujo de ventas...`));
-                    currentState = { isClient: false, chatHistory: [], prospectData: { name: userMessage } };
-                    // Creamos el historial inicial para la IA.
-                    currentState.chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
                     
-                    // Le pedimos a la IA que salude al usuario por su nombre y continúe la conversación.
+                    // Preparamos el estado para el flujo de ventas, eliminando el 'step' para pasar al default.
+                    currentState = { 
+                        isClient: false, 
+                        chatHistory: [], 
+                        prospectData: { name: userMessage } 
+                    };
+                    
+                    // Creamos el historial inicial de la conversación.
+                    currentState.chatHistory.push({ role: 'user', parts: [{ text: "Hola" }] }); // Simula un saludo inicial.
+                    currentState.chatHistory.push({ role: 'model', parts: [{ text: `Hola, me llamo ${userMessage}` }] });
+                    
+                    // Saludamos al usuario por su nombre y le preguntamos en qué podemos ayudarlo.
                     const initialSalesMessage = `¡Un gusto, ${userMessage}! 😊 Cuéntame, ¿en qué te puedo ayudar hoy?`;
-                    currentState.chatHistory.push({ role: 'model', parts: [{ text: initialSalesMessage }] });
-                    
                     await this.client.sendMessage(chatId, initialSalesMessage);
+                    
+                    // Guardamos el nuevo estado y esperamos la siguiente respuesta del cliente.
                     await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
-                    // Ya no llamamos a handleNewProspect aquí, esperamos la siguiente respuesta del cliente.
                     // --- FIN DE LA MODIFICACIÓN ---
                 }
                 break;
