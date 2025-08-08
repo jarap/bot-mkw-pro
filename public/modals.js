@@ -95,19 +95,28 @@ function openSalesModal(type, data = {}, salesData) {
             `;
             break;
         case 'promociones':
-            // --- INICIO DE LA MODIFICACIÓN ---
-            // Ahora, al crear cada botón, se comprueba si la zona está en la lista de zonas aplicables de la promoción.
             const zonasButtons = (salesData.zonasCobertura.listado || []).map(zona => {
                 const isActive = (data.zonasAplicables || []).includes(zona);
                 return `<button type="button" class="zone-btn ${isActive ? 'active' : ''}" data-zona="${zona}">${zona}</button>`;
             }).join('');
-            // --- FIN DE LA MODIFICACIÓN ---
 
+            // --- INICIO DE LA MODIFICACIÓN ---
             formHTML = `
-                <input type="text" name="nombre" placeholder="Nombre de la Promoción" value="${data.nombre || ''}" required>
-                <textarea name="descripcion" rows="3" placeholder="Descripción">${data.descripcion || ''}</textarea>
-                
+                <div class="form-group">
+                    <label for="promo-nombre">Nombre de la Promoción</label>
+                    <input type="text" id="promo-nombre" name="nombre" placeholder="Ej: Promo Verano" value="${data.nombre || ''}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="promo-descripcion">Descripción</label>
+                    <textarea id="promo-descripcion" name="descripcion" rows="3" placeholder="Detalles de la promoción">${data.descripcion || ''}</textarea>
+                </div>
+
                 <div class="form-group-row">
+                    <div class="form-group">
+                        <label for="promo-descuento">Descuento en Instalación (%)</label>
+                        <input type="number" id="promo-descuento" name="descuentoInstalacion" placeholder="Ej: 50" value="${data.descuentoInstalacion || ''}">
+                    </div>
                     <div class="form-group">
                         <label for="promo-activo">Promoción Activa</label>
                         <label class="switch-container">
@@ -128,6 +137,7 @@ function openSalesModal(type, data = {}, salesData) {
                     </div>
                 </div>
             `;
+            // --- FIN DE LA MODIFICACIÓN ---
             break;
         case 'preguntasFrecuentes':
             formHTML = `

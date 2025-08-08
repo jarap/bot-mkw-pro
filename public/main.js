@@ -255,6 +255,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (type === 'promociones') {
                 data.activo = formData.has('activo');
                 
+                // --- INICIO DE LA MODIFICACIÓN ---
+                // Procesamos el nuevo campo de descuento para que se guarde como número
+                data.descuentoInstalacion = Number(data.descuentoInstalacion) || 0;
+                // --- FIN DE LA MODIFICACIÓN ---
+
                 const zonasContainer = document.getElementById('promo-zonas-container');
                 const selectedZonas = [];
                 zonasContainer.querySelectorAll('.zone-btn.active').forEach(btn => {
@@ -307,11 +312,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Se mueve el listener de los botones de zona a un nivel superior (document.body)
-        // para que funcione correctamente con contenido dinámico.
         document.body.addEventListener('click', (e) => {
-            // Solo actuar si el clic ocurrió dentro del modal de ventas
             if (!e.target.closest('#sales-modal-overlay')) return;
 
             const zoneBtn = e.target.closest('.zone-btn');
@@ -329,7 +330,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('#promo-zonas-container .zone-btn').forEach(btn => btn.classList.remove('active'));
             }
         });
-        // --- FIN DE LA MODIFICACIÓN ---
     }
 
     initializeWebSocket();

@@ -314,7 +314,7 @@ input:checked + .switch-slider:before {
 
 /* --- INICIO DE LA MODIFICACIÓN --- */
 /* Estilos para los botones de zona y acciones de selección */
-.zone-btn {
+.modern-form .zone-btn {
     background-color: var(--color-danger);
     color: var(--color-white);
     border: 1px solid var(--color-danger);
@@ -324,29 +324,33 @@ input:checked + .switch-slider:before {
     transition: all 200ms ease;
     font-weight: 500;
 }
-.zone-btn:hover {
+
+.modern-form .zone-btn:hover {
     opacity: 0.8;
 }
-.zone-btn.active {
+
+.modern-form .zone-btn.active {
     background-color: var(--color-success);
     border-color: var(--color-success);
 }
+
 #select-all-zones {
-    background-color: var(--color-success);
+    background: var(--color-success);
     color: var(--color-white);
     border-color: var(--color-success);
 }
 #select-all-zones:hover {
-    background-color: var(--color-success);
+    background: var(--color-success);
     opacity: 0.8;
 }
+
 #deselect-all-zones {
-    background-color: var(--color-danger);
+    background: var(--color-danger);
     color: var(--color-white);
     border-color: var(--color-danger);
 }
 #deselect-all-zones:hover {
-    background-color: var(--color-danger);
+    background: var(--color-danger);
     opacity: 0.8;
 }
 /* --- FIN DE LA MODIFICACIÓN --- */
