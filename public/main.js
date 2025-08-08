@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
             state.tickets = ticketsData;
             render.renderTickets(dom.ticketsTableBody, state.tickets);
             render.renderDashboardCharts(state.tickets);
+            ui.initializeTicketFilters(state.tickets); 
         } catch (error) {
             console.error("Fallo en la carga inicial de tickets.", error);
         }
@@ -116,6 +117,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
                     break;
+                // --- INICIO DE LA MODIFICACIÓN ---
+                case 'ticketsChanged':
+                    console.log('[PUNTO DE CONTROL] Notificación de cambio en tickets recibida. Recargando lista...');
+                    loadInitialData(); // Esta función ya recarga, renderiza y re-inicializa los filtros.
+                    break;
+                // --- FIN DE LA MODIFICACIÓN ---
             }
         };
 
@@ -144,7 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeEventListeners() {
         ui.initializeUISidebar();
         ui.initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig);
-        ui.initializeTicketFilters(state.tickets);
         modals.initializeModals(() => state.salesData, forceReloadSalesData);
 
         dom.connectBtn?.addEventListener('click', () => api.connectBot());
@@ -249,7 +255,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 await handleUpdateZonas(currentList);
 
-            // --- INICIO DE LA MODIFICACIÓN ---
             } else if (type === 'promociones') {
                 data.activo = formData.has('activo');
                 
@@ -266,7 +271,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     await api.addItem(type, data);
                 }
                 await forceReloadSalesData();
-            // --- FIN DE LA MODIFICACIÓN ---
 
             } else if (type === 'planes') {
                 data.precioMensual = Number(data.precioMensual);
