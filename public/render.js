@@ -127,18 +127,10 @@ export function renderPlanes(tableBody, planes) {
     });
 }
 
+// --- INICIO DE LA MODIFICACIÓN ---
 export function renderPromos(tableBody, promos) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
-
-    const formatDate = (timestamp) => {
-        if (!timestamp || !timestamp.seconds) return 'N/A';
-        const date = new Date(timestamp.seconds * 1000);
-        // Ajuste manual para la zona horaria de Argentina (UTC-3)
-        const userTimezoneOffset = date.getTimezoneOffset() * 60000;
-        const localDate = new Date(date.getTime() - userTimezoneOffset);
-        return localDate.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-    };
 
     (promos || []).forEach(promo => {
         const row = tableBody.insertRow();
@@ -147,18 +139,11 @@ export function renderPromos(tableBody, promos) {
         const status = promo.activo 
             ? '<span class="status-badge status-en-progreso">Activa</span>' 
             : '<span class="status-badge status-cerrado">Inactiva</span>';
-        
-        // --- INICIO DE LA CORRECCIÓN: Lógica de fechas mejorada ---
-        const fechaInicioStr = formatDate(promo.fechaInicio);
-        const fechaFinStr = formatDate(promo.fechaFin);
-        const validez = `${fechaInicioStr} - ${fechaFinStr}`;
-        // --- FIN DE LA CORRECCIÓN ---
 
         row.innerHTML = `
             <td>${promo.nombre || 'N/A'}</td>
             <td>${promo.descripcion || 'N/A'}</td>
             <td>${status}</td>
-            <td>${validez}</td>
             <td>
                 <button class="action-btn-small edit-btn" data-type="promociones" data-item='${sanitizedItem}'><i class="fas fa-edit"></i></button>
                 <button class="action-btn-small delete-btn" data-type="promociones" data-id="${promo.id}"><i class="fas fa-trash"></i></button>
@@ -166,6 +151,7 @@ export function renderPromos(tableBody, promos) {
         `;
     });
 }
+// --- FIN DE LA MODIFICACIÓN ---
 
 export function renderFaqs(tableBody, faqs) {
     if (!tableBody) return;

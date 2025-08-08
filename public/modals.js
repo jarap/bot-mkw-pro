@@ -94,14 +94,8 @@ function openSalesModal(type, data = {}, salesData) {
                 <textarea name="idealPara" rows="3" placeholder="Ideal para...">${data.idealPara || ''}</textarea>
             `;
             break;
-        // --- INICIO DE LA MODIFICACIÓN: Formulario de Promociones reconstruido ---
+        // --- INICIO DE LA MODIFICACIÓN: Formulario de Promociones simplificado ---
         case 'promociones':
-            const toYYYYMMDD = (timestamp) => {
-                if (!timestamp || !timestamp.seconds) return '';
-                const d = new Date(timestamp.seconds * 1000);
-                return d.toISOString().split('T')[0];
-            };
-
             const zonasButtons = (salesData.zonasCobertura.listado || []).map(zona => {
                 const isActive = (data.zonasAplicables || []).includes(zona);
                 return `<button type="button" class="zone-btn ${isActive ? 'active' : ''}" data-zona="${zona}">${zona}</button>`;
@@ -118,17 +112,6 @@ function openSalesModal(type, data = {}, salesData) {
                             <input type="checkbox" id="promo-activo" name="activo" ${data.activo ? 'checked' : ''}>
                             <span class="switch-slider"></span>
                         </label>
-                    </div>
-                </div>
-
-                <div class="form-group-row">
-                    <div class="form-group">
-                        <label for="promo-fechaInicio">Fecha de Inicio</label>
-                        <input type="date" id="promo-fechaInicio" name="fechaInicio" value="${toYYYYMMDD(data.fechaInicio)}">
-                    </div>
-                    <div class="form-group">
-                        <label for="promo-fechaFin">Fecha de Fin</label>
-                        <input type="date" id="promo-fechaFin" name="fechaFin" value="${toYYYYMMDD(data.fechaFin)}">
                     </div>
                 </div>
 

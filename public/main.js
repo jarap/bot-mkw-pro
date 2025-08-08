@@ -249,14 +249,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 await handleUpdateZonas(currentList);
 
+            // --- INICIO DE LA MODIFICACIÓN ---
             } else if (type === 'promociones') {
                 data.activo = formData.has('activo');
                 
-                // --- INICIO DE LA CORRECCIÓN: Manejo de fechas vacías ---
-                data.fechaInicio = data.fechaInicio ? new Date(data.fechaInicio + 'T03:00:00Z') : null;
-                data.fechaFin = data.fechaFin ? new Date(data.fechaFin + 'T23:59:59Z') : null;
-                // --- FIN DE LA CORRECCIÓN ---
-
                 const zonasContainer = document.getElementById('promo-zonas-container');
                 const selectedZonas = [];
                 zonasContainer.querySelectorAll('.zone-btn.active').forEach(btn => {
@@ -270,6 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     await api.addItem(type, data);
                 }
                 await forceReloadSalesData();
+            // --- FIN DE LA MODIFICACIÓN ---
 
             } else if (type === 'planes') {
                 data.precioMensual = Number(data.precioMensual);
@@ -309,7 +306,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // --- INICIO DE LA CORRECCIÓN: Se mueve el listener al formulario ---
         dom.salesForm?.addEventListener('click', (e) => {
             const zoneBtn = e.target.closest('.zone-btn');
             if (zoneBtn) {
@@ -326,7 +322,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 dom.salesForm.querySelectorAll('.zone-btn').forEach(btn => btn.classList.remove('active'));
             }
         });
-        // --- FIN DE LA CORRECCIÓN ---
     }
 
     initializeWebSocket();
