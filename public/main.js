@@ -81,7 +81,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         ws.onopen = () => {
             console.log('[PUNTO DE CONTROL] Conexión WebSocket establecida.');
-            api.getBotStatus().then(data => ui.updateStatusUI(data.status));
+            // --- INICIO DE LA MODIFICACIÓN ---
+            // Se elimina la petición inicial. Ahora el panel espera a que el servidor le informe el estado.
+            // api.getBotStatus().then(data => ui.updateStatusUI(data.status));
+            // --- FIN DE LA MODIFICACIÓN ---
             loadInitialData();
         };
 
@@ -117,12 +120,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
                     break;
-                // --- INICIO DE LA MODIFICACIÓN ---
                 case 'ticketsChanged':
                     console.log('[PUNTO DE CONTROL] Notificación de cambio en tickets recibida. Recargando lista...');
-                    loadInitialData(); // Esta función ya recarga, renderiza y re-inicializa los filtros.
+                    loadInitialData();
                     break;
-                // --- FIN DE LA MODIFICACIÓN ---
             }
         };
 

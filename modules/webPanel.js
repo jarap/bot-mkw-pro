@@ -80,12 +80,8 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         if (!ticketId) return res.status(400).json({ success: false, message: 'Falta el ID del ticket.' });
         try {
             await firestoreHandler.updateTicket(ticketId, { 'Estado': 'Cerrado', 'isOpen': false });
-            // --- INICIO DE LA MODIFICACIÓN ---
-            // Notificamos al panel que la lista de tickets ha cambiado para que se actualice al instante.
             broadcast({ type: 'ticketsChanged' });
-            // También actualizamos el KPI de tickets abiertos inmediatamente.
             broadcastKPIs();
-            // --- FIN DE LA MODIFICACIÓN ---
             res.json({ success: true, message: 'Ticket cerrado correctamente.' });
         } catch (error) {
             res.status(500).json({ success: false, message: 'No se pudo cerrar el ticket.' });
@@ -135,6 +131,16 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         wssClients.add(ws);
         console.log('Cliente conectado al panel de control.');
 
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Enviamos el estado actual del bot tan pronto como el panel se conecta.
+        try {
+            const currentStatus = whatsappClient.getStatus();
+            ws.send(JSON.stringify({ type: 'status', data: currentStatus }));
+        } catch (error) {
+            console.error(chalk.red('❌ Error al enviar estado inicial del bot por WebSocket:'), error);
+        }
+        // --- FIN DE LA MODIFICACIÓN ---
+
         try {
             const configResult = await firestoreHandler.getCompanyConfig();
             if (configResult.success) {
@@ -167,10 +173,7 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
     whatsappClient.on('sessionsUpdate', () => {
         broadcastKPIs();
         broadcast({ type: 'sessionsChanged' });
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Cuando se crea/cierra una sesión de soporte, también actualizamos la lista de tickets.
         broadcast({ type: 'ticketsChanged' });
-        // --- FIN DE LA MODIFICACIÓN ---
     });
     
     setInterval(broadcastKPIs, 60000);
