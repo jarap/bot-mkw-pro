@@ -170,15 +170,14 @@ async function analizarSentimiento(userMessage) {
     }
 }
 
-// --- INICIO DE LA MODIFICACIÓN ---
-async function answerSupportQuestion(userMessage) {
+async function answerSupportQuestion(chatHistory) {
     try {
-        console.log(chalk.cyan('   -> Buscando respuesta en FAQs de Soporte...'));
+        console.log(chalk.cyan('   -> Buscando respuesta en FAQs de Soporte con historial...'));
         const supportFaqs = await getSupportFaqs();
 
         if (supportFaqs.length === 0) {
             console.log(chalk.yellow('   -> No se encontraron FAQs de soporte en la base de datos.'));
-            return "[NO_ANSWER]"; // Devuelve la señal si no hay FAQs
+            return "[NO_ANSWER]";
         }
 
         let knowledgeString = "Preguntas Frecuentes de Soporte:\n";
@@ -186,22 +185,58 @@ async function answerSupportQuestion(userMessage) {
             knowledgeString += `- P: ${faq.pregunta}\n  R: ${faq.respuesta}\n`;
         });
 
-        // Se actualizan las instrucciones para la IA.
-        const systemPrompt = `Eres I-Bot, un asistente virtual de soporte técnico. Tu tarea es responder la pregunta del cliente basándote estrictamente en la siguiente lista de Preguntas Frecuentes.
-        REGLAS IMPORTANTES:
-        1. Si la pregunta del cliente se puede responder con la información proporcionada, responde de forma amable y directa.
-        2. Si la pregunta del cliente NO se puede responder con la información, debes responder ÚNICAMENTE con la frase: "[NO_ANSWER]". No añadas nada más.
+        const userMessage = chatHistory[chatHistory.length - 1].parts[0].text;
+        
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se define 'modelHistory' ANTES de que se utilice en el 'systemPrompt'.
+        const modelHistory = chatHistory.slice(0, -1);
+        // --- FIN DE LA MODIFICACIÓN ---
 
+        const systemPrompt = `Sos I-Bot, un Asistente Técnico Senior de una empresa de internet en Argentina. Tu personalidad es amable, directa y eficiente. Usás siempre el "voseo". Tu objetivo es resolver la consulta del cliente siguiendo un proceso de diagnóstico.
+
+        **Tu Proceso de Diagnóstico (Seguí estos pasos en orden):**
+        
+        1.  **Acknowledge y Primera Acción:**
+            * Leé la **Pregunta del Cliente** y el **Historial**.
+            * Si el cliente está molesto, empezá con una frase corta y empática (ej: "Uf, qué macana.", "Entiendo, revisemos qué pasa.").
+            * Buscá en la **Base de Conocimiento (FAQs)** una solución inicial para el problema del cliente.
+            * **Respondé dando UNA SOLA instrucción clara y directa**. Usá **negritas** para la acción.
+            * *Ejemplo de respuesta:* "Ok, empecemos por lo básico. Por favor, ***reiniciá el módem y la antena***. Desenchufalos 30 segundos y volvelos a enchufar. Avisame cuando lo hayas hecho 👍."
+        
+        2.  **Verificación y Segundo Paso:**
+            * Cuando el cliente responda, analizá si la primera acción funcionó.
+            * **Si el problema persiste**, y si la Base de Conocimiento ofrece una segunda pregunta de diagnóstico (como "¿qué luces tiene?"), hacé esa pregunta para obtener más información.
+            * *Ejemplo de respuesta:* "Lástima que no funcionó. Para seguir, ¿me podrías decir ***qué luces ves prendidas en el módem y de qué color son***? 🤔"
+        
+        3.  **Escalamiento Final:**
+            * Si el cliente pide hablar con una **persona**, O si ya diste una instrucción y una pregunta de diagnóstico y el problema sigue, **no insistas más**.
+            * Respondé con una **disculpa amable y variada**, explicando que sos una IA con conocimiento limitado y que lo vas a derivar. **Al final de tu mensaje, incluí la frase \`[NO_ANSWER]\`**.
+            * *Ejemplo 1:* "La verdad, hasta acá llega mi conocimiento. Para no hacerte perder tiempo, te voy a pasar con una persona de nuestro equipo que te va a poder ayudar mejor. [NO_ANSWER]"
+            * *Ejemplo 2:* "Ok, parece que este problema necesita una revisión más a fondo. Como soy una IA, hay cosas que se me escapan. Te derivo con un agente para que lo vean en detalle. [NO_ANSWER]"
+        
         **Base de Conocimiento (ÚNICA fuente de verdad):**
         ---
         ${knowledgeString}
         ---
-
+        
+        **Historial de la Conversación (para entender el contexto):**
+        ---
+        ${JSON.stringify(modelHistory)}
+        ---
+        
         **Pregunta del Cliente:**
         ${userMessage}
         `;
 
-        const result = await model.generateContent(systemPrompt);
+        const chat = model.startChat({
+            history: [
+                { role: 'user', parts: [{ text: systemPrompt }] },
+                { role: 'model', parts: [{ text: "Entendido. Estoy listo para asistir al cliente con memoria conversacional, siguiendo las reglas de personalidad y flujo de trabajo para no repetirme." }] },
+                ...modelHistory
+            ]
+        });
+
+        const result = await chat.sendMessage(userMessage);
         const response = await result.response;
         return response.text().trim();
 
@@ -210,7 +245,6 @@ async function answerSupportQuestion(userMessage) {
         return "Tuvimos un problema al procesar tu consulta. Un agente la revisará a la brevedad.";
     }
 }
-// --- FIN DE LA MODIFICACIÓN ---
 
 module.exports = {
     handleSalesConversation,

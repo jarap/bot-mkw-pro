@@ -12,7 +12,7 @@ const redisClient = require('./redisClient');
 
 const supportGroupPool = {};
 const TIMEOUT_MS = 15 * 60 * 1000;
-const STATE_TTL_SECONDS = 12 * 60 * 60; // 12 horas
+const STATE_TTL_SECONDS = 3600; // 1 hora
 
 const SALES_LEADS_GROUP_ID = process.env.SALES_LEADS_GROUP_ID;
 
@@ -98,6 +98,15 @@ class WhatsAppClient extends EventEmitter {
 
         let currentState = await redisClient.get(`state:${chatId}`);
         
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se añade una comprobación para el estado 'awaiting_agent'.
+        if (currentState && currentState.awaiting_agent) {
+            console.log(chalk.yellow(`   -> Cliente con ticket pendiente. Enviando mensaje de espera.`));
+            await this.client.sendMessage(chatId, "¡Hola! Ya tenés una solicitud de soporte abierta. Un agente te responderá por este mismo chat a la brevedad. Por favor, aguardá la respuesta. 👍");
+            return; // Detiene la ejecución para no procesar más.
+        }
+        // --- FIN DE LA MODIFICACIÓN ---
+        
         if (!currentState) {
             console.log(chalk.yellow(`   -> Nuevo contacto. Verificando número de celular en Mikrowisp...`));
             const phoneNumber = chatId.replace('@c.us', '').slice(-10);
@@ -105,10 +114,9 @@ class WhatsAppClient extends EventEmitter {
 
             if (resultByPhone.success) {
                 console.log(chalk.green(`   -> ¡Cliente encontrado por celular! Transicionando a menú de cliente.`));
-                currentState = { isClient: true, clientData: resultByPhone.data };
+                currentState = { isClient: true, clientData: resultByPhone.data, chatHistory: [] };
                 await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                 await this.sendWelcomeMessage(chatId, resultByPhone.data);
-                // No llamamos a handleRegisteredClient aquí para no procesar el primer "hola" como una consulta.
             } else {
                 console.log(chalk.yellow(`   -> Celular no encontrado. Iniciando flujo de ventas...`));
                 const configResult = await firestoreHandler.getVentasConfig();
@@ -133,7 +141,7 @@ class WhatsAppClient extends EventEmitter {
 
                     if (result.success) {
                         console.log(chalk.green(`   -> ¡Cliente encontrado por DNI/CUIT! Transicionando a menú de cliente.`));
-                        currentState = { isClient: true, clientData: result.data };
+                        currentState = { isClient: true, clientData: result.data, chatHistory: [] };
                         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                         await this.sendWelcomeMessage(chatId, result.data);
                     } else {
@@ -177,34 +185,38 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
-    // --- INICIO DE LA MODIFICACIÓN ---
     async handleRegisteredClient(chatId, userMessage, currentState) {
-        // 1. Regla Rígida: Comprobar la frase exacta para solicitar soporte.
         if (userMessage.toLowerCase() === 'solicito soporte') {
             console.log(chalk.green.bold(`   -> Frase clave 'solicito soporte' detectada. Creando ticket...`));
             await this.createSupportTicket(chatId, "El cliente solicitó soporte explícitamente.", currentState.clientData);
-            return; // Termina la ejecución aquí.
+            return;
         }
 
-        // 2. Si no es la frase de soporte, intentar resolver con la IA.
-        console.log(chalk.cyan(`   -> Intentando auto-resolver con FAQs...`));
-        const faqResponse = await iaHandler.answerSupportQuestion(userMessage);
+        const chatHistory = currentState.chatHistory || [];
+        chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+
+        console.log(chalk.cyan(`   -> Intentando auto-resolver con FAQs y memoria...`));
+        const faqResponse = await iaHandler.answerSupportQuestion(chatHistory);
         
-        if (faqResponse === "[NO_ANSWER]") {
-            // 3. Si la IA no puede responder, guiar al usuario.
-            console.log(chalk.yellow(`   -> No se encontró respuesta en FAQs. Guiando al usuario.`));
-            const guidanceMessage = "No encontré una respuesta automática para tu consulta. Para hablar con un agente, por favor, envía un mensaje que diga exactamente: *solicito soporte*";
-            await this.client.sendMessage(chatId, guidanceMessage);
+        if (faqResponse.includes("[NO_ANSWER]")) {
+            console.log(chalk.yellow(`   -> Señal [NO_ANSWER] recibida. Escalando a ticket de soporte.`));
+            
+            const apologyMessage = faqResponse.replace("[NO_ANSWER]", "").trim();
+            if (apologyMessage) {
+                await this.client.sendMessage(chatId, apologyMessage);
+            }
+
+            await this.createSupportTicket(chatId, userMessage, currentState.clientData);
         } else {
-            // 4. Si la IA encuentra una respuesta, la envía.
             console.log(chalk.green(`   -> Respuesta encontrada en FAQs. Enviando al cliente.`));
             await this.client.sendMessage(chatId, faqResponse);
+            chatHistory.push({ role: 'model', parts: [{ text: faqResponse }] });
+            currentState.chatHistory = chatHistory;
+            await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
         }
     }
-    // --- FIN DE LA MODIFICACIÓN ---
 
     async handleNewProspect(chatId, userMessage, currentState) {
-        // ... (El resto de la función 'handleNewProspect' no necesita cambios)
         if (currentState.awaiting_sales_confirmation) {
             console.log(chalk.cyan(`   -> Analizando respuesta de confirmación: "${userMessage}"`));
             const intencion = await iaHandler.analizarConfirmacion(userMessage);
@@ -239,7 +251,9 @@ class WhatsAppClient extends EventEmitter {
         }
 
         let chatHistory = currentState.chatHistory || [];
-        chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+        if (!chatHistory.find(m => m.role === 'user' && m.parts[0].text === userMessage)) {
+            chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+        }
         
         if (!currentState.prospectData) currentState.prospectData = {};
         const nameHint = chatHistory.find(m => m.role === 'model' && m.parts[0].text.toLowerCase().includes('cómo te llamas'));
@@ -462,6 +476,13 @@ class WhatsAppClient extends EventEmitter {
             
             await this.client.sendMessage(clientChatId, '✅ Tu solicitud ha sido enviada. Un agente la tomará en breve.');
             this.emit('sessionsUpdate');
+            
+            // --- INICIO DE LA MODIFICACIÓN ---
+            // Se actualiza el estado del cliente a 'awaiting_agent' en lugar de borrarlo.
+            const newState = { awaiting_agent: true };
+            await redisClient.set(`state:${clientChatId}`, newState, STATE_TTL_SECONDS);
+            console.log(chalk.magenta(`   -> Estado del cliente ${clientChatId} actualizado a 'awaiting_agent'.`));
+            // --- FIN DE LA MODIFICACIÓN ---
 
         } catch (error) {
             console.error(chalk.red.bold('❌ ERROR CRÍTICO al crear ticket de soporte:'));
@@ -519,8 +540,11 @@ class WhatsAppClient extends EventEmitter {
 
         await this.client.sendMessage(session.clientChatId, `Tu sesión de soporte ha finalizado (motivo: ${reason}). Si necesitas algo más, no dudes en escribirnos de nuevo. ¡Que tengas un buen día!`);
         
+        // --- INICIO DE LA MODIFICACIÓN ---
+        // Se asegura de que el estado del cliente se borre completamente al cerrar la sesión.
         await redisClient.del(`state:${session.clientChatId}`);
         console.log(chalk.magenta(`   -> Estado del cliente ${session.clientChatId} reseteado.`));
+        // --- FIN DE LA MODIFICACIÓN ---
         
         if (session.assignedGroup) {
             await this.client.sendMessage(session.assignedGroup, `✅ La sesión con *${session.clientName}* ha sido cerrada y este grupo está libre.`);
