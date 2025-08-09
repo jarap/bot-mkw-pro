@@ -25,29 +25,16 @@ class WhatsAppClient extends EventEmitter {
         this.initializeSupportPool();
     }
 
-    // --- INICIO DE LA MODIFICACIÓN ---
-    /**
-     * Actualizador central para el estado de una sesión en Redis.
-     * Garantiza que la sesión se guarde en todas sus llaves asociadas,
-     * eliminando propiedades no serializables.
-     * @param {object} session - El objeto de la sesión a guardar.
-     */
     async _updateSessionState(session) {
         if (!session || !session.ticketId) return;
-
-        // Se crea una copia de la sesión para no modificar el objeto original en memoria.
         const savableSession = { ...session };
-        // Se elimina la propiedad 'timeoutId' que contiene la estructura circular.
         delete savableSession.timeoutId;
-
-        // Se guarda la copia limpia en todas las llaves de Redis.
         await redisClient.set(`session:${session.ticketId}`, savableSession);
         await redisClient.set(`session_client:${session.clientChatId}`, savableSession);
         if (session.assignedGroup) {
             await redisClient.set(`session_group:${session.assignedGroup}`, savableSession);
         }
     }
-    // --- FIN DE LA MODIFICACIÓN ---
 
     initializeSupportPool() {
         const groupIds = process.env.SUPPORT_CHAT_GROUP_IDS || '';
@@ -134,10 +121,11 @@ class WhatsAppClient extends EventEmitter {
             const resultByPhone = await getClientDetails(phoneNumber);
 
             if (resultByPhone.success) {
-                console.log(chalk.green(`   -> ¡Cliente encontrado por celular! Transicionando a menú de cliente.`));
-                currentState = { isClient: true, clientData: resultByPhone.data, chatHistory: [] };
+                console.log(chalk.green(`   -> ¡Cliente encontrado por celular! Iniciando flujo de cliente registrado.`));
+                currentState = { isClient: true, clientData: resultByPhone.data };
                 await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
-                await this.sendWelcomeMessage(chatId, resultByPhone.data);
+                // La bienvenida ahora también iniciará el menú
+                await this.sendWelcomeMessage(chatId, resultByPhone.data, currentState);
             } else {
                 console.log(chalk.yellow(`   -> Celular no encontrado. Iniciando flujo de ventas...`));
                 const configResult = await firestoreHandler.getVentasConfig();
@@ -161,10 +149,10 @@ class WhatsAppClient extends EventEmitter {
                     const result = await getClientDetails(cleanedMessage);
 
                     if (result.success) {
-                        console.log(chalk.green(`   -> ¡Cliente encontrado por DNI/CUIT! Transicionando a menú de cliente.`));
-                        currentState = { isClient: true, clientData: result.data, chatHistory: [] };
+                        console.log(chalk.green(`   -> ¡Cliente encontrado por DNI/CUIT! Iniciando flujo de cliente registrado.`));
+                        currentState = { isClient: true, clientData: result.data };
                         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
-                        await this.sendWelcomeMessage(chatId, result.data);
+                        await this.sendWelcomeMessage(chatId, result.data, currentState);
                     } else {
                         console.log(chalk.yellow(`   -> DNI/CUIT no encontrado. Transicionando a flujo de ventas.`));
                         await this.client.sendMessage(chatId, "No pude encontrarte en nuestro sistema con ese número. Me gustaría ayudarte, para eso, ¿podrías decirme tu nombre?");
@@ -206,38 +194,126 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // La función ahora decide si el usuario navega por el menú o habla con la IA.
     async handleRegisteredClient(chatId, userMessage, currentState) {
-        if (userMessage.toLowerCase() === 'solicito soporte') {
-            console.log(chalk.green.bold(`   -> Frase clave 'solicito soporte' detectada. Creando ticket...`));
-            await this.createSupportTicket(chatId, "El cliente solicitó soporte explícitamente.", currentState.clientData);
-            return;
-        }
+        const isNumericOption = /^\d+$/.test(userMessage);
 
-        const chatHistory = currentState.chatHistory || [];
-        chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
-
-        console.log(chalk.cyan(`   -> Intentando auto-resolver con FAQs y memoria...`));
-        const faqResponse = await iaHandler.answerSupportQuestion(chatHistory);
-        
-        if (faqResponse.includes("[NO_ANSWER]")) {
-            console.log(chalk.yellow(`   -> Señal [NO_ANSWER] recibida. Escalando a ticket de soporte.`));
-            
-            const apologyMessage = faqResponse.replace("[NO_ANSWER]", "").trim();
-            if (apologyMessage) {
-                await this.client.sendMessage(chatId, apologyMessage);
+        if (isNumericOption) {
+            // El usuario ha seleccionado una opción numérica del menú.
+            const menuData = currentState.menuData;
+            if (!menuData || !menuData.options) {
+                console.log(chalk.yellow('   -> El usuario envió un número, pero no hay un menú activo. Reiniciando flujo.'));
+                await this.sendMenu(chatId, 'principal', currentState);
+                return;
             }
 
-            await this.createSupportTicket(chatId, userMessage, currentState.clientData);
+            const selectedOption = menuData.options.find(opt => opt.id === userMessage);
+
+            if (selectedOption) {
+                console.log(chalk.green(`   -> Usuario seleccionó la opción del menú: "${selectedOption.text}"`));
+                await this.executeMenuAction(chatId, selectedOption.action, currentState);
+            } else {
+                console.log(chalk.yellow(`   -> Opción numérica inválida. Reenviando menú actual.`));
+                await this.client.sendMessage(chatId, "⚠️ Opción no válida. Por favor, elige una de las siguientes:");
+                await this.sendMenu(chatId, menuData.id, currentState);
+            }
         } else {
-            console.log(chalk.green(`   -> Respuesta encontrada en FAQs. Enviando al cliente.`));
-            await this.client.sendMessage(chatId, faqResponse);
-            chatHistory.push({ role: 'model', parts: [{ text: faqResponse }] });
-            currentState.chatHistory = chatHistory;
-            await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
+            // El usuario ha escrito texto libre, se lo pasamos a la IA.
+            console.log(chalk.cyan(`   -> El usuario escribió texto libre. Pasando a la IA...`));
+            
+            const chatHistory = currentState.chatHistory || [];
+            chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
+
+            const faqResponse = await iaHandler.answerSupportQuestion(chatHistory);
+            
+            if (faqResponse.includes("[NO_ANSWER]")) {
+                console.log(chalk.yellow(`   -> Señal [NO_ANSWER] recibida. Escalando a ticket de soporte.`));
+                const apologyMessage = faqResponse.replace("[NO_ANSWER]", "").trim();
+                if (apologyMessage) {
+                    await this.client.sendMessage(chatId, apologyMessage);
+                }
+                await this.createSupportTicket(chatId, userMessage, currentState.clientData);
+            } else {
+                console.log(chalk.green(`   -> Respuesta encontrada por IA. Enviando al cliente.`));
+                await this.client.sendMessage(chatId, faqResponse);
+                chatHistory.push({ role: 'model', parts: [{ text: faqResponse }] });
+                currentState.chatHistory = chatHistory;
+                await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
+            }
         }
     }
 
+    /**
+     * Envía un menú dinámico al cliente.
+     * @param {string} chatId - El ID del chat del cliente.
+     * @param {string} menuId - El ID del menú a enviar (ej: 'principal').
+     * @param {object} currentState - El estado actual del cliente.
+     */
+    async sendMenu(chatId, menuId, currentState) {
+        const menuData = await firestoreHandler.getMenu(menuId);
+        if (!menuData) {
+            console.error(chalk.red(`Error fatal: No se pudo cargar el menú '${menuId}'.`));
+            await this.client.sendMessage(chatId, "Lo siento, tuvimos un problema para mostrar las opciones. Por favor, intenta de nuevo más tarde.");
+            return;
+        }
+
+        let menuMessage = `${menuData.title}\n\n${menuData.description}\n\n`;
+        menuData.options.forEach(option => {
+            menuMessage += `*${option.id}* - ${option.text}\n`;
+        });
+
+        await this.client.sendMessage(chatId, menuMessage);
+
+        // Guardamos el menú actual y su ID en el estado de Redis
+        currentState.menu = menuId;
+        currentState.menuData = menuData;
+        await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
+        console.log(chalk.magenta(`   -> Menú '${menuId}' enviado y estado actualizado en Redis.`));
+    }
+
+    /**
+     * Ejecuta la acción asociada a una opción de menú.
+     * @param {string} chatId - El ID del chat del cliente.
+     * @param {object} action - El objeto de acción de la opción seleccionada.
+     * @param {object} currentState - El estado actual del cliente.
+     */
+    async executeMenuAction(chatId, action, currentState) {
+        switch (action.type) {
+            case 'submenu':
+                await this.sendMenu(chatId, action.value, currentState);
+                break;
+            case 'reply':
+                await this.client.sendMessage(chatId, action.value);
+                // Después de una respuesta, volvemos al menú principal para no dejar al usuario en un callejón sin salida.
+                await this.sendMenu(chatId, 'principal', currentState);
+                break;
+            case 'create_ticket':
+                const initialMessage = `El cliente seleccionó la opción de menú para crear un ticket en la sección: "${action.value}"`;
+                await this.createSupportTicket(chatId, initialMessage, currentState.clientData);
+                break;
+            case 'run_service_check':
+                // Esta es una acción especial que vuelve a ejecutar el diagnóstico.
+                console.log(chalk.cyan(`   -> Ejecutando re-chequeo de servicio para ${chatId}...`));
+                const result = await getClientDetails(currentState.clientData.cedula);
+                if (result.success) {
+                    await this.sendWelcomeMessage(chatId, result.data, currentState, false); // false para no reenviar el menú
+                } else {
+                    await this.client.sendMessage(chatId, "No pudimos re-verificar tu servicio en este momento.");
+                }
+                // Volvemos a mostrar el menú actual después de la acción.
+                await this.sendMenu(chatId, currentState.menu, currentState);
+                break;
+            default:
+                console.error(chalk.red(`Tipo de acción de menú desconocida: ${action.type}`));
+                await this.client.sendMessage(chatId, "Hubo un problema al procesar tu selección.");
+                break;
+        }
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
+
     async handleNewProspect(chatId, userMessage, currentState) {
+        // ... (El resto de esta función no necesita cambios)
         if (currentState.awaiting_sales_confirmation) {
             console.log(chalk.cyan(`   -> Analizando respuesta de confirmación: "${userMessage}"`));
             const intencion = await iaHandler.analizarConfirmacion(userMessage);
@@ -567,7 +643,9 @@ class WhatsAppClient extends EventEmitter {
         }, TIMEOUT_MS);
     }
     
-    async sendWelcomeMessage(chatId, clientData) {
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // La función ahora también puede iniciar el flujo de menús.
+    async sendWelcomeMessage(chatId, clientData, currentState, showMenu = true) {
         let responseMessage = `*¡Hola, ${clientData.nombre}!* 👋\n\n`;
         responseMessage += `Soy I-Bot, tu asistente virtual.\n\n`;
         responseMessage += `Resumen de tu cuenta:\n`;
@@ -591,9 +669,15 @@ class WhatsAppClient extends EventEmitter {
                 responseMessage += `${analysisMessage}\n`;
             });
         }
-        responseMessage += `\n\nSi tenés alguna consulta, no dudes en escribirla. Para hablar con un agente, enviá la frase: *solicito soporte*`;
-        this.client.sendMessage(chatId, responseMessage);
+        
+        await this.client.sendMessage(chatId, responseMessage);
+
+        if (showMenu) {
+            // Después de la bienvenida, iniciamos el flujo con el menú principal.
+            await this.sendMenu(chatId, 'principal', currentState);
+        }
     }
+    // --- FIN DE LA MODIFICACIÓN ---
 
     async sendMessage(chatId, message) {
         if (!this.client) throw new Error('El cliente no está conectado.');

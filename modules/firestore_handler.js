@@ -23,6 +23,35 @@ try {
     const configCollection = db.collection('configuracion');
     const zonasCollection = db.collection('zonasCobertura');
     const soporteFaqsCollection = db.collection('soporteFAQ');
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Referencia a la nueva colección para los menús del bot.
+    const menuSoporteCollection = db.collection('menuSoporte');
+    // --- FIN DE LA MODIFICACIÓN ---
+
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    /**
+     * Obtiene la estructura de un menú específico desde Firestore.
+     * @param {string} menuId - El ID del documento del menú a obtener (ej: 'principal').
+     * @returns {Promise<object|null>} El objeto del menú o null si no se encuentra.
+     */
+    async function getMenu(menuId) {
+        try {
+            const docRef = menuSoporteCollection.doc(menuId);
+            const doc = await docRef.get();
+            if (!doc.exists) {
+                console.error(chalk.red(`❌ No se encontró el menú con ID '${menuId}' en Firestore.`));
+                return null;
+            }
+            // Devuelve un objeto con todos los datos del documento del menú.
+            return { id: doc.id, ...doc.data() };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al obtener el menú '${menuId}' de Firestore:`), error);
+            return null;
+        }
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
+
 
     async function logTicket(ticketData) {
         try {
@@ -68,9 +97,7 @@ try {
             return 0;
         }
     }
-
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // Ahora esta función obtiene TODOS los datos necesarios para el panel de Ajustes.
+    
     async function getSalesData() {
         try {
             const [planesSnap, promosSnap, faqsSnap, configSnap, zonasSnap, soporteFaqsSnap] = await Promise.all([
@@ -79,7 +106,7 @@ try {
                 faqsCollection.get(),
                 knowledgeCollection.doc('configuracionGeneral').get(),
                 zonasCollection.limit(1).get(),
-                soporteFaqsCollection.get() // Se añade la nueva colección
+                soporteFaqsCollection.get()
             ]);
 
             let zonasDoc = null;
@@ -91,7 +118,7 @@ try {
                 planes: planesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 promociones: promosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 preguntasFrecuentes: faqsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
-                soporteFaqs: soporteFaqsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })), // Se añaden los datos
+                soporteFaqs: soporteFaqsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 configuracionGeneral: configSnap.exists ? { id: configSnap.id, ...configSnap.data() } : {},
                 zonasCobertura: zonasDoc ? { id: zonasDoc.id, ...zonasDoc.data() } : { id: null, listado: [] }
             };
@@ -102,7 +129,6 @@ try {
             return { success: false, message: 'No se pudieron obtener los datos de ventas.' };
         }
     }
-    // --- FIN DE LA MODIFICACIÓN ---
 
     async function addItem(collectionName, data) {
         try {
@@ -210,7 +236,8 @@ try {
         updateCompanyConfig,
         getVentasConfig,
         updateVentasConfig,
-        getSupportFaqs
+        getSupportFaqs,
+        getMenu, // --- INICIO DE LA MODIFICACIÓN --- Exportamos la nueva función
     };
 
 } catch (error) {
