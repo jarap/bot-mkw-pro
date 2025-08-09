@@ -33,9 +33,42 @@ export const getActiveSessions = () => fetchData('/api/activesessions');
 export const getSalesData = () => fetchData('/api/salesdata');
 export const getCompanyConfig = () => fetchData('/api/config/empresa');
 export const getVentasConfig = () => fetchData('/api/config/ventas');
-// --- INICIO DE LA MODIFICACIÓN ---
 export const getCalendarEvents = () => fetchData('/api/calendar/events');
-// --- FIN DE LA MODIFICACIÓN ---
+
+// --- INICIO DE MODIFICACIONES: Funciones para el Gestor de Menús ---
+
+export const getMenus = () => fetchData('/api/menus');
+
+export const createMenu = (menuId) => fetchData('/api/menus', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ menuId }),
+});
+
+export const deleteMenu = (menuId) => fetchData(`/api/menus/${menuId}`, {
+    method: 'DELETE',
+});
+
+export const updateMenuDetails = (menuId, data) => fetchData(`/api/menus/${menuId}/details`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+});
+
+export const addMenuOption = (menuId, optionData) => fetchData(`/api/menus/${menuId}/options`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(optionData),
+});
+
+export const deleteMenuOption = (menuId, optionData) => fetchData(`/api/menus/${menuId}/options`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(optionData),
+});
+
+// --- FIN DE MODIFICACIONES ---
+
 
 // --- Funciones de acción (POST, PUT, DELETE) ---
 

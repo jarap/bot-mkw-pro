@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Se añade la librería FullCalendar para renderizar el calendario -->
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
 </head>
 <body>
@@ -135,7 +134,6 @@
                             <h3>Calendario de Visitas Técnicas</h3>
                         </div>
                         <div class="card-body" id="calendar-container">
-                            <!-- El calendario se renderizará aquí mediante JavaScript -->
                         </div>
                     </div>
                 </div>
@@ -209,6 +207,12 @@
                                     <div class="settings-icon"><i class="fas fa-robot"></i></div>
                                     <span>Ajustes Bot de Venta</span>
                                 </a>
+                                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
+                                <a href="#" class="settings-card" data-target="ajustes-bot-soporte">
+                                    <div class="settings-icon"><i class="fas fa-sitemap"></i></div>
+                                    <span>Ajustes Bot Soporte</span>
+                                </a>
+                                <!-- --- FIN DE LA MODIFICACIÓN --- -->
                                 <a href="#" class="settings-card" data-target="planes">
                                     <div class="settings-icon"><i class="fas fa-wifi"></i></div>
                                     <span>Planes de Internet</span>
@@ -233,6 +237,22 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
+                <!-- Nueva sección para el Gestor de Menús del Bot de Soporte -->
+                <div id="ajustes-bot-soporte" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Ajustes Bot Soporte</h3>
+                            <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                        </div>
+                        <div class="card-body">
+                            <!-- El contenido de esta sección será generado por JavaScript -->
+                            <p>Cargando gestor de menús...</p>
+                        </div>
+                    </div>
+                </div>
+                <!-- --- FIN DE LA MODIFICACIÓN --- -->
 
                 <div id="ajustes-empresa" class="main-section">
                     <div class="card">

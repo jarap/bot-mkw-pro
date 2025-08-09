@@ -1,6 +1,6 @@
 // modules/firestore_handler.js
 const { initializeApp, cert, getApps } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const chalk = require('chalk');
 
 try {
@@ -23,18 +23,119 @@ try {
     const configCollection = db.collection('configuracion');
     const zonasCollection = db.collection('zonasCobertura');
     const soporteFaqsCollection = db.collection('soporteFAQ');
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // Referencia a la nueva colección para los menús del bot.
     const menuSoporteCollection = db.collection('menuSoporte');
-    // --- FIN DE LA MODIFICACIÓN ---
 
+    // --- INICIO DE MODIFICACIONES PARA GESTOR DE MENÚS ---
 
-    // --- INICIO DE LA MODIFICACIÓN ---
     /**
-     * Obtiene la estructura de un menú específico desde Firestore.
-     * @param {string} menuId - El ID del documento del menú a obtener (ej: 'principal').
-     * @returns {Promise<object|null>} El objeto del menú o null si no se encuentra.
+     * Obtiene la lista de todos los menús disponibles.
+     * @returns {Promise<object>} Un objeto con la lista de menús.
      */
+    async function getMenus() {
+        try {
+            const snapshot = await menuSoporteCollection.get();
+            if (snapshot.empty) {
+                return { success: true, data: [] };
+            }
+            const menus = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return { success: true, data: menus };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al obtener la lista de menús:'), error);
+            return { success: false, message: 'No se pudo obtener la lista de menús.' };
+        }
+    }
+
+    /**
+     * Actualiza los datos de un menú existente (título, descripción).
+     * @param {string} menuId - El ID del menú a actualizar.
+     * @param {object} data - Los datos a actualizar (ej: { title, description }).
+     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
+     */
+    async function updateMenuDetails(menuId, data) {
+        try {
+            await menuSoporteCollection.doc(menuId).update(data);
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al actualizar detalles del menú ${menuId}:`), error);
+            return { success: false, message: 'No se pudo actualizar el menú.' };
+        }
+    }
+    
+    /**
+     * Añade una nueva opción a un menú existente.
+     * @param {string} menuId - El ID del menú.
+     * @param {object} optionData - Los datos de la nueva opción.
+     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
+     */
+    async function addMenuOption(menuId, optionData) {
+        try {
+            const menuRef = menuSoporteCollection.doc(menuId);
+            await menuRef.update({
+                options: FieldValue.arrayUnion(optionData)
+            });
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al añadir opción al menú ${menuId}:`), error);
+            return { success: false, message: 'No se pudo añadir la opción.' };
+        }
+    }
+
+    /**
+     * Elimina una opción de un menú.
+     * @param {string} menuId - El ID del menú.
+     * @param {object} optionData - Los datos de la opción a eliminar.
+     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
+     */
+    async function deleteMenuOption(menuId, optionData) {
+        try {
+            const menuRef = menuSoporteCollection.doc(menuId);
+            await menuRef.update({
+                options: FieldValue.arrayRemove(optionData)
+            });
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al eliminar opción del menú ${menuId}:`), error);
+            return { success: false, message: 'No se pudo eliminar la opción.' };
+        }
+    }
+    
+    /**
+     * Crea un nuevo documento de menú.
+     * @param {string} menuId - El ID para el nuevo menú.
+     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
+     */
+    async function createMenu(menuId) {
+        try {
+            const newMenuData = {
+                title: `Nuevo Menú (${menuId})`,
+                description: "Descripción por defecto.",
+                options: []
+            };
+            await menuSoporteCollection.doc(menuId).set(newMenuData);
+            return { success: true, data: { id: menuId, ...newMenuData } };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al crear el menú ${menuId}:`), error);
+            return { success: false, message: 'No se pudo crear el menú.' };
+        }
+    }
+    
+    /**
+     * Elimina un documento de menú completo.
+     * @param {string} menuId - El ID del menú a eliminar.
+     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
+     */
+    async function deleteMenu(menuId) {
+        try {
+            await menuSoporteCollection.doc(menuId).delete();
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al eliminar el menú ${menuId}:`), error);
+            return { success: false, message: 'No se pudo eliminar el menú.' };
+        }
+    }
+
+    // --- FIN DE MODIFICACIONES ---
+
     async function getMenu(menuId) {
         try {
             const docRef = menuSoporteCollection.doc(menuId);
@@ -43,15 +144,12 @@ try {
                 console.error(chalk.red(`❌ No se encontró el menú con ID '${menuId}' en Firestore.`));
                 return null;
             }
-            // Devuelve un objeto con todos los datos del documento del menú.
             return { id: doc.id, ...doc.data() };
         } catch (error) {
             console.error(chalk.red(`❌ Error al obtener el menú '${menuId}' de Firestore:`), error);
             return null;
         }
     }
-    // --- FIN DE LA MODIFICACIÓN ---
-
 
     async function logTicket(ticketData) {
         try {
@@ -237,7 +335,16 @@ try {
         getVentasConfig,
         updateVentasConfig,
         getSupportFaqs,
-        getMenu, // --- INICIO DE LA MODIFICACIÓN --- Exportamos la nueva función
+        getMenu,
+        // --- INICIO DE MODIFICACIÓN ---
+        // Exportamos las nuevas funciones para que puedan ser usadas por el panel web.
+        getMenus,
+        updateMenuDetails,
+        addMenuOption,
+        deleteMenuOption,
+        createMenu,
+        deleteMenu
+        // --- FIN DE MODIFICACIÓN ---
     };
 
 } catch (error) {

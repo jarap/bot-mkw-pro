@@ -15,13 +15,14 @@ document.addEventListener('DOMContentLoaded', () => {
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] }, soporteFaqs: [] },
         companyConfig: {},
         ventasConfig: {},
-        activeSessions: []
+        activeSessions: [],
+        // --- INICIO DE MODIFICACIÓN: Estado para el gestor de menús ---
+        menus: [],
+        selectedMenuId: null
+        // --- FIN DE MODIFICACIÓN ---
     };
 
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // Se añade la referencia al contenedor del calendario y una variable para la instancia.
     let calendarInstance = null;
-    // --- FIN DE LA MODIFICACIÓN ---
 
     const dom = {
         ticketsTableBody: document.getElementById('tickets-table-body'),
@@ -41,9 +42,10 @@ document.addEventListener('DOMContentLoaded', () => {
         sendMessageForm: document.getElementById('send-message-form'),
         connectBtn: document.getElementById('connect-btn'),
         disconnectBtn: document.getElementById('disconnect-btn'),
-        // --- INICIO DE LA MODIFICACIÓN ---
         calendarContainer: document.getElementById('calendar-container'),
-        // --- FIN DE LA MODIFICACIÓN ---
+        // --- INICIO DE MODIFICACIÓN: Contenedor para el editor de menús ---
+        menuEditorContainer: document.getElementById('ajustes-bot-soporte')?.querySelector('.card-body')
+        // --- FIN DE MODIFICACIÓN ---
     };
 
     async function loadInitialData() {
@@ -68,7 +70,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const data = await api.getSalesData();
             state.salesData = data;
-            console.log('[PUNTO DE CONTROL] Datos de ventas recargados:', state.salesData);
             
             render.renderPlanes(dom.planesTableBody, state.salesData.planes);
             render.renderPromos(dom.promosTableBody, state.salesData.promociones);
@@ -88,9 +89,6 @@ document.addEventListener('DOMContentLoaded', () => {
             render.renderCompanyConfigForm(dom.companyConfigForm, state.companyConfig);
         } catch (error) {
             console.error("Fallo al cargar la configuración de la empresa.", error);
-            if (dom.companyConfigForm) {
-                dom.companyConfigForm.innerHTML = `<p class="error-message">No se pudo cargar la configuración.</p>`;
-            }
         }
     }
 
@@ -101,65 +99,45 @@ document.addEventListener('DOMContentLoaded', () => {
             render.renderVentasConfigForm(dom.ventasConfigForm, state.ventasConfig);
         } catch (error) {
             console.error("Fallo al cargar la configuración de ventas.", error);
-            if (dom.ventasConfigForm) {
-                dom.ventasConfigForm.innerHTML = `<p class="error-message">No se pudo cargar la configuración.</p>`;
-            }
         }
     }
-
-    // --- INICIO DE LA MODIFICACIÓN ---
-    /**
-     * Carga los eventos y renderiza el calendario en el DOM.
-     */
+    
     async function loadAndRenderCalendar() {
         if (!dom.calendarContainer) return;
-
-        // Si ya existe una instancia del calendario, la destruimos para evitar duplicados.
-        if (calendarInstance) {
-            calendarInstance.destroy();
-        }
-
+        if (calendarInstance) calendarInstance.destroy();
         try {
             const events = await api.getCalendarEvents();
-            
             calendarInstance = new FullCalendar.Calendar(dom.calendarContainer, {
-                initialView: 'dayGridMonth', // Vista mensual por defecto
-                locale: 'es', // Calendario en español
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
-                },
-                events: events, // Aquí se cargan los eventos obtenidos de la API
-                eventClick: function(info) {
-                    // Muestra los detalles del evento en un modal de alerta.
-                    modals.showCustomAlert(
-                        info.event.title,
-                        `Descripción: ${info.event.extendedProps.description || 'No disponible'}\n` +
-                        `Inicio: ${info.event.start.toLocaleString()}\n` +
-                        `Fin: ${info.event.end ? info.event.end.toLocaleString() : 'N/A'}`
-                    );
-                }
+                initialView: 'dayGridMonth',
+                locale: 'es',
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay' },
+                events: events,
+                eventClick: (info) => modals.showCustomAlert(info.event.title, `Descripción: ${info.event.extendedProps.description || 'No disponible'}`)
             });
-
             calendarInstance.render();
-
         } catch (error) {
-            dom.calendarContainer.innerHTML = `<p class="error-message">No se pudieron cargar los eventos del calendario.</p>`;
-            console.error("Fallo al cargar o renderizar el calendario.", error);
+            dom.calendarContainer.innerHTML = `<p class="error-message">No se pudieron cargar los eventos.</p>`;
         }
     }
-    // --- FIN DE LA MODIFICACIÓN ---
+
+    // --- INICIO DE MODIFICACIÓN: Función para cargar y renderizar el gestor de menús ---
+    async function loadAndRenderMenuEditor() {
+        if (!dom.menuEditorContainer) return;
+        try {
+            const menusData = await api.getMenus();
+            state.menus = menusData;
+            render.renderMenuEditor(dom.menuEditorContainer, state.menus, state);
+        } catch (error) {
+            dom.menuEditorContainer.innerHTML = `<p class="error-message">No se pudo cargar el gestor de menús.</p>`;
+        }
+    }
+    // --- FIN DE MODIFICACIÓN ---
 
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const ws = new WebSocket(`${protocol}//${window.location.host}`);
 
-        ws.onopen = () => {
-            console.log('[PUNTO DE CONTROL] Conexión WebSocket establecida.');
-            loadInitialData();
-        };
-
+        ws.onopen = () => loadInitialData();
         ws.onmessage = (event) => {
             const message = JSON.parse(event.data);
             switch (message.type) {
@@ -186,21 +164,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     break;
                 case 'sessionsChanged':
                     if (document.getElementById('sessions').classList.contains('active')) {
-                        api.getActiveSessions().then(sessions => {
-                            state.activeSessions = sessions;
-                            render.renderActiveSessions(dom.sessionsTableBody, state.activeSessions);
-                        });
+                        api.getActiveSessions().then(sessions => render.renderActiveSessions(dom.sessionsTableBody, sessions));
                     }
                     break;
                 case 'ticketsChanged':
-                    console.log('[PUNTO DE CONTROL] Notificación de cambio en tickets recibida. Recargando lista...');
                     loadInitialData();
                     break;
             }
         };
-
         ws.onclose = () => {
-            console.log('[PUNTO DE CONTROL] Conexión WebSocket perdida. Intentando reconectar...');
             ui.updateStatusUI('SERVIDOR_REINICIANDO');
             setTimeout(() => window.location.reload(), 3000);
         };
@@ -208,15 +180,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function handleUpdateZonas(newListado) {
         try {
-            const docId = state.salesData.zonasCobertura.id;
-            if (!docId) {
-                throw new Error("No se encontró el ID del documento de zonas de cobertura.");
-            }
-            await api.updateItem('zonasCobertura', docId, { listado: newListado });
+            await api.updateItem('zonasCobertura', state.salesData.zonasCobertura.id, { listado: newListado });
             modals.showCustomAlert('Éxito', 'La lista de zonas ha sido actualizada.');
             await forceReloadSalesData();
         } catch (error) {
-            console.error('Error al actualizar zonas:', error);
             modals.showCustomAlert('Error', `No se pudo actualizar la lista de zonas: ${error.message}`);
         }
     }
@@ -224,8 +191,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeEventListeners() {
         ui.initializeUISidebar();
         
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Se crea un objeto con los callbacks para pasarlo a la función de navegación.
         const navigationCallbacks = {
             'history': renderCurrentTickets,
             'calendar': loadAndRenderCalendar,
@@ -235,25 +200,20 @@ document.addEventListener('DOMContentLoaded', () => {
             'zonas-cobertura': forceReloadSalesData,
             'faq-soporte': forceReloadSalesData,
             'ajustes-empresa': loadAndRenderCompanyConfig,
-            'ajustes-bot-venta': loadAndRenderVentasConfig
+            'ajustes-bot-venta': loadAndRenderVentasConfig,
+            // --- INICIO DE MODIFICACIÓN: Callback para la nueva sección ---
+            'ajustes-bot-soporte': loadAndRenderMenuEditor
+            // --- FIN DE MODIFICACIÓN ---
         };
         ui.initializeUINavigation(navigationCallbacks);
-        // --- FIN DE LA MODIFICACIÓN ---
 
         modals.initializeModals(modals.openSalesModal, forceReloadSalesData);
 
         document.body.addEventListener('click', (e) => {
             const viewButton = e.target.closest('.view-ticket-btn');
             if (viewButton && viewButton.dataset.ticketId) {
-                const ticketId = viewButton.dataset.ticketId;
-                const ticketData = state.tickets.find(t => t.ID_Ticket === ticketId);
-
-                if (ticketData) {
-                    modals.showTicketModal(ticketData);
-                } else {
-                    console.error(`No se encontró el ticket con ID: ${ticketId}`);
-                    modals.showCustomAlert('Error', 'No se pudieron cargar los detalles del ticket.');
-                }
+                const ticketData = state.tickets.find(t => t.ID_Ticket === viewButton.dataset.ticketId);
+                if (ticketData) modals.showTicketModal(ticketData);
             }
         });
 
@@ -264,31 +224,19 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const recipient = e.target.elements['manual-recipient'].value.trim();
             const message = e.target.elements['manual-message'].value.trim();
-            const sendBtn = e.target.querySelector('button');
-
-            if (!recipient || !message) {
-                return ui.showFeedback('Por favor, completa ambos campos.', 'error');
-            }
-            
-            sendBtn.disabled = true;
-            sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Enviando...';
-            
+            if (!recipient || !message) return ui.showFeedback('Por favor, completa ambos campos.', 'error');
             try {
                 await api.sendManualMessage(recipient, message);
                 ui.showFeedback('Mensaje enviado con éxito.', 'success');
                 e.target.elements['manual-message'].value = '';
             } catch (error) {
                 ui.showFeedback(error.message, 'error');
-            } finally {
-                sendBtn.disabled = false;
-                sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Enviar Mensaje';
             }
         });
 
         dom.companyConfigForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
-            const formData = new FormData(dom.companyConfigForm);
-            const newConfigData = Object.fromEntries(formData.entries());
+            const newConfigData = Object.fromEntries(new FormData(dom.companyConfigForm).entries());
             try {
                 await api.saveCompanyConfig(newConfigData);
                 modals.showCustomAlert('Éxito', 'Configuración guardada.');
@@ -310,42 +258,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        dom.companyConfigForm?.addEventListener('click', (e) => {
-            if (e.target.id === 'change-logo-btn') {
-                document.getElementById('logo-file-input')?.click();
-            }
-        });
-
         dom.companyConfigForm?.addEventListener('change', async (e) => {
             if (e.target.id === 'logo-file-input' && e.target.files[0]) {
-                const file = e.target.files[0];
                 const formData = new FormData();
-                formData.append('logo', file);
-
-                const changeBtn = document.getElementById('change-logo-btn');
-                const originalBtnText = changeBtn.innerHTML;
-                changeBtn.disabled = true;
-                changeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
-
+                formData.append('logo', e.target.files[0]);
                 try {
-                    const response = await fetch('/api/upload/logo', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const result = await response.json();
-
+                    const result = await fetch('/api/upload/logo', { method: 'POST', body: formData }).then(res => res.json());
                     if (!result.success) throw new Error(result.message);
-
                     document.getElementById('logo-preview').src = result.filePath;
                     document.getElementById('company-logoUrl').value = result.filePath;
-                    
                     ui.showFeedback('Logo subido. No olvides guardar la configuración.', 'success');
-
                 } catch (error) {
                     modals.showCustomAlert('Error de Subida', `No se pudo subir el logo: ${error.message}`);
-                } finally {
-                    changeBtn.disabled = false;
-                    changeBtn.innerHTML = originalBtnText;
                 }
             }
         });
@@ -358,67 +282,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (type === 'zona') {
                 const newName = data.nombre.trim();
-                if (!newName) {
-                    modals.showCustomAlert('Error', 'El nombre de la zona no puede estar vacío.');
-                    return;
-                }
-                const isEditing = e.target.dataset.isEditing === 'true';
-                const originalIndex = parseInt(e.target.dataset.originalIndex, 10);
+                if (!newName) return modals.showCustomAlert('Error', 'El nombre de la zona no puede estar vacío.');
                 const currentList = [...(state.salesData.zonasCobertura.listado || [])];
-                if (isEditing) {
-                    if (originalIndex > -1) currentList[originalIndex] = newName;
+                if (e.target.dataset.isEditing === 'true') {
+                    currentList[parseInt(e.target.dataset.originalIndex, 10)] = newName;
                 } else {
                     currentList.push(newName);
                 }
                 await handleUpdateZonas(currentList);
-
-            } else if (type === 'promociones') {
-                data.activo = formData.has('activo');
-                data.descuentoInstalacion = Number(data.descuentoInstalacion) || 0;
-
-                const zonasContainer = document.getElementById('promo-zonas-container');
-                const selectedZonas = [];
-                zonasContainer.querySelectorAll('.zone-btn.active').forEach(btn => {
-                    selectedZonas.push(btn.dataset.zona);
-                });
-                data.zonasAplicables = selectedZonas;
-                
-                if (id) {
-                    await api.updateItem(type, id, data);
-                } else {
-                    await api.addItem(type, data);
-                }
-                await forceReloadSalesData();
-
-            } else if (type === 'planes') {
-                data.precioMensual = Number(data.precioMensual);
-                data.velocidadBajada = Number(data.velocidadBajada);
-                data.velocidadSubida = Number(data.velocidadSubida);
-                if (id) {
-                    await api.updateItem(type, id, data);
-                } else {
-                    await api.addItem(type, data);
-                }
-                await forceReloadSalesData();
             } else {
-                 if (id) {
-                    await api.updateItem(type, id, data);
-                } else {
-                    await api.addItem(type, data);
+                if (type === 'promociones') {
+                    data.activo = formData.has('activo');
+                    data.descuentoInstalacion = Number(data.descuentoInstalacion) || 0;
+                    const selectedZonas = [];
+                    document.querySelectorAll('#promo-zonas-container .zone-btn.active').forEach(btn => selectedZonas.push(btn.dataset.zona));
+                    data.zonasAplicables = selectedZonas;
+                } else if (type === 'planes') {
+                    data.precioMensual = Number(data.precioMensual);
+                    data.velocidadBajada = Number(data.velocidadBajada);
+                    data.velocidadSubida = Number(data.velocidadSubida);
                 }
+                await (id ? api.updateItem(type, id, data) : api.addItem(type, data));
                 await forceReloadSalesData();
             }
-            
             document.getElementById('close-sales-modal-btn')?.click();
         });
 
-        dom.zonasTableBody?.addEventListener('click', async (e) => {
+        dom.zonasTableBody?.addEventListener('click', (e) => {
             const deleteButton = e.target.closest('.delete-zona-btn');
             if (deleteButton) {
                 const index = parseInt(deleteButton.dataset.index, 10);
-                const zona = deleteButton.dataset.zona;
-                
-                modals.showConfirmationModal('Confirmar Eliminación', `¿Estás seguro de que quieres eliminar la zona "${zona}"?`, () => {
+                modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro?`, () => {
                     const currentList = [...(state.salesData.zonasCobertura.listado || [])];
                     if (index > -1) {
                         currentList.splice(index, 1);
@@ -428,28 +322,83 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        dom.addSupportFaqBtn?.addEventListener('click', () => {
-            modals.openSalesModal('soporteFAQ', {}, state.salesData);
+        dom.addSupportFaqBtn?.addEventListener('click', () => modals.openSalesModal('soporteFAQ', {}, state.salesData));
+
+        // --- INICIO DE MODIFICACIÓN: Event Listeners para el Gestor de Menús ---
+        dom.menuEditorContainer?.addEventListener('click', async (e) => {
+            // Seleccionar un menú de la lista
+            const menuItem = e.target.closest('li[data-menu-id]');
+            if (menuItem) {
+                state.selectedMenuId = menuItem.dataset.menuId;
+                await loadAndRenderMenuEditor(); // Recargamos para reflejar la selección
+            }
+
+            // Crear un nuevo menú
+            const createBtn = e.target.closest('#create-menu-btn');
+            if (createBtn) {
+                const newMenuId = prompt('Introduce el ID para el nuevo menú (ej: "facturacion"):');
+                if (newMenuId && !state.menus.find(m => m.id === newMenuId)) {
+                    await api.createMenu(newMenuId);
+                    await loadAndRenderMenuEditor();
+                } else if (newMenuId) {
+                    modals.showCustomAlert('Error', 'Ya existe un menú con ese ID.');
+                }
+            }
+
+            // Eliminar un menú
+            const deleteMenuBtn = e.target.closest('.delete-menu-btn');
+            if (deleteMenuBtn) {
+                const menuId = deleteMenuBtn.dataset.menuId;
+                modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro que quieres eliminar el menú "${menuId}"? Esta acción no se puede deshacer.`, async () => {
+                    await api.deleteMenu(menuId);
+                    state.selectedMenuId = null; // Deseleccionamos
+                    await loadAndRenderMenuEditor();
+                });
+            }
+
+            // Añadir una nueva opción
+            const addOptionBtn = e.target.closest('#add-option-btn');
+            if (addOptionBtn) {
+                const menuId = addOptionBtn.dataset.menuId;
+                modals.openMenuOptionModal(state.menus, async (newOption) => {
+                    await api.addMenuOption(menuId, newOption);
+                    await loadAndRenderMenuEditor();
+                });
+            }
+
+            // Eliminar una opción
+            const deleteOptionBtn = e.target.closest('.delete-option-btn');
+            if (deleteOptionBtn) {
+                const menuId = deleteOptionBtn.dataset.menuId;
+                const optionIndex = parseInt(deleteOptionBtn.dataset.optionIndex, 10);
+                const menu = state.menus.find(m => m.id === menuId);
+                const optionToDelete = menu?.options[optionIndex];
+                if (optionToDelete) {
+                    modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro que quieres eliminar la opción "${optionToDelete.text}"?`, async () => {
+                        await api.deleteMenuOption(menuId, optionToDelete);
+                        await loadAndRenderMenuEditor();
+                    });
+                }
+            }
         });
 
-        document.body.addEventListener('click', (e) => {
-            if (!e.target.closest('#sales-modal-overlay')) return;
-
-            const zoneBtn = e.target.closest('.zone-btn');
-            if (zoneBtn) {
-                zoneBtn.classList.toggle('active');
-            }
-            
-            const selectAllBtn = e.target.closest('#select-all-zones');
-            if (selectAllBtn) {
-                document.querySelectorAll('#promo-zonas-container .zone-btn').forEach(btn => btn.classList.add('active'));
-            }
-
-            const deselectAllBtn = e.target.closest('#deselect-all-zones');
-            if (deselectAllBtn) {
-                document.querySelectorAll('#promo-zonas-container .zone-btn').forEach(btn => btn.classList.remove('active'));
+        // Guardar cambios en los detalles del menú
+        dom.menuEditorContainer?.addEventListener('submit', async (e) => {
+            if (e.target.id === 'menu-details-form') {
+                e.preventDefault();
+                const menuId = e.target.dataset.menuId;
+                const formData = new FormData(e.target);
+                const data = { title: formData.get('title'), description: formData.get('description') };
+                try {
+                    await api.updateMenuDetails(menuId, data);
+                    modals.showCustomAlert('Éxito', 'Detalles del menú guardados.');
+                    await loadAndRenderMenuEditor();
+                } catch (error) {
+                    modals.showCustomAlert('Error', 'No se pudieron guardar los cambios.');
+                }
             }
         });
+        // --- FIN DE MODIFICACIÓN ---
     }
 
     initializeWebSocket();

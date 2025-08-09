@@ -8,10 +8,7 @@ const { WebSocketServer } = require('ws');
 const qrcode = require('qrcode');
 const chalk = require('chalk');
 const multer = require('multer');
-// --- INICIO DE LA MODIFICACIÓN ---
-// Importamos el manejador del calendario para poder usar sus funciones.
 const calendarHandler = require('./calendar_handler');
-// --- FIN DE LA MODIFICACIÓN ---
 
 const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -77,13 +74,10 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // --- INICIO DE LA MODIFICACIÓN ---
-    // Se añade el nuevo endpoint para obtener los eventos del calendario.
     app.get('/api/calendar/events', checkAuth, async (req, res) => {
         const result = await calendarHandler.getEvents();
         res.status(result.success ? 200 : 500).json(result);
     });
-    // --- FIN DE LA MODIFICACIÓN ---
 
     app.get('/api/salesdata', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getSalesData();
@@ -149,6 +143,55 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         const result = await firestoreHandler.deleteItem(collection, id);
         res.status(result.success ? 200 : 500).json(result);
     });
+
+    // --- INICIO DE MODIFICACIONES: ENDPOINTS PARA GESTOR DE MENÚS ---
+
+    // Obtener todos los menús
+    app.get('/api/menus', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getMenus();
+        res.status(result.success ? 200 : 500).json(result);
+    });
+
+    // Crear un nuevo menú
+    app.post('/api/menus', checkAuth, async (req, res) => {
+        const { menuId } = req.body;
+        if (!menuId) return res.status(400).json({ success: false, message: 'Falta el ID del menú.' });
+        const result = await firestoreHandler.createMenu(menuId);
+        res.status(result.success ? 201 : 500).json(result);
+    });
+
+    // Eliminar un menú
+    app.delete('/api/menus/:id', checkAuth, async (req, res) => {
+        const { id } = req.params;
+        const result = await firestoreHandler.deleteMenu(id);
+        res.status(result.success ? 200 : 500).json(result);
+    });
+
+    // Actualizar detalles de un menú (título, descripción)
+    app.put('/api/menus/:id/details', checkAuth, async (req, res) => {
+        const { id } = req.params;
+        const { title, description } = req.body;
+        const result = await firestoreHandler.updateMenuDetails(id, { title, description });
+        res.status(result.success ? 200 : 500).json(result);
+    });
+
+    // Añadir una opción a un menú
+    app.post('/api/menus/:id/options', checkAuth, async (req, res) => {
+        const { id } = req.params;
+        const optionData = req.body;
+        const result = await firestoreHandler.addMenuOption(id, optionData);
+        res.status(result.success ? 201 : 500).json(result);
+    });
+
+    // Eliminar una opción de un menú
+    app.delete('/api/menus/:id/options', checkAuth, async (req, res) => {
+        const { id } = req.params;
+        const optionData = req.body;
+        const result = await firestoreHandler.deleteMenuOption(id, optionData);
+        res.status(result.success ? 200 : 500).json(result);
+    });
+
+    // --- FIN DE MODIFICACIONES ---
 
     const wssClients = new Set();
     wss.on('connection', async (ws) => {

@@ -1,6 +1,156 @@
 // public/render.js
 // Módulo para renderizar (dibujar) HTML en el DOM.
 
+// --- INICIO DE MODIFICACIONES: Funciones para el Gestor de Menús ---
+
+/**
+ * Dibuja la interfaz principal del editor de menús.
+ * @param {HTMLElement} container - El div donde se renderizará el editor.
+ * @param {Array} menus - La lista de todos los menús.
+ * @param {object} state - El estado actual de la aplicación.
+ */
+export function renderMenuEditor(container, menus, state) {
+    if (!container) return;
+
+    container.innerHTML = `
+        <div class="menu-editor-layout">
+            <div class="menu-list-column">
+                <div class="card-header">
+                    <h3>Menús Disponibles</h3>
+                    <button class="action-btn-small" id="create-menu-btn"><i class="fas fa-plus"></i> Crear Menú</button>
+                </div>
+                <ul id="menu-list-ul">
+                    ${menus.map(menu => `
+                        <li data-menu-id="${menu.id}" class="${state.selectedMenuId === menu.id ? 'active' : ''}">
+                            <span>${menu.id}</span>
+                            <button class="action-btn-small delete-menu-btn" data-menu-id="${menu.id}">&times;</button>
+                        </li>
+                    `).join('')}
+                </ul>
+            </div>
+            <div class="menu-details-column" id="menu-details-container">
+                <!-- Los detalles del menú seleccionado se renderizarán aquí -->
+            </div>
+        </div>
+    `;
+
+    // Si hay un menú seleccionado, renderizamos sus detalles.
+    if (state.selectedMenuId) {
+        const selectedMenu = menus.find(m => m.id === state.selectedMenuId);
+        if (selectedMenu) {
+            renderSelectedMenuDetails(document.getElementById('menu-details-container'), selectedMenu);
+        }
+    } else {
+        document.getElementById('menu-details-container').innerHTML = '<p>Selecciona un menú de la lista para editarlo.</p>';
+    }
+}
+
+/**
+ * Dibuja los detalles y opciones del menú seleccionado.
+ * @param {HTMLElement} container - El div donde se renderizarán los detalles.
+ * @param {object} menu - El objeto del menú seleccionado.
+ */
+function renderSelectedMenuDetails(container, menu) {
+    if (!container || !menu) return;
+
+    container.innerHTML = `
+        <form id="menu-details-form" data-menu-id="${menu.id}">
+            <div class="form-group">
+                <label for="menu-title">Título del Menú</label>
+                <input type="text" id="menu-title" name="title" value="${menu.title || ''}" required>
+            </div>
+            <div class="form-group">
+                <label for="menu-description">Descripción del Menú</label>
+                <textarea id="menu-description" name="description" rows="3" required>${menu.description || ''}</textarea>
+            </div>
+            <button type="submit">Guardar Cambios</button>
+        </form>
+        <hr>
+        <div class="card-header">
+            <h3>Opciones del Menú</h3>
+            <button class="action-btn-small" id="add-option-btn" data-menu-id="${menu.id}"><i class="fas fa-plus"></i> Añadir Opción</button>
+        </div>
+        <table class="tickets-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Texto</th>
+                    <th>Acción</th>
+                    <th>Valor</th>
+                    <th style="width: 120px;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="menu-options-tbody">
+                ${(menu.options || []).map((option, index) => `
+                    <tr>
+                        <td>${option.id}</td>
+                        <td>${option.text}</td>
+                        <td><span class="status-badge status-en-progreso">${option.action.type}</span></td>
+                        <td>${option.action.value}</td>
+                        <td>
+                            <button class="action-btn-small delete-option-btn" data-menu-id="${menu.id}" data-option-index="${index}"><i class="fas fa-trash"></i></button>
+                        </td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    `;
+}
+
+/**
+ * Dibuja el contenido del modal para añadir/editar una opción de menú.
+ * @param {HTMLElement} formFieldsEl - El contenedor de los campos del formulario.
+ * @param {Array} allMenus - La lista de todos los menús para el desplegable.
+ */
+export function renderMenuOptionModal(formFieldsEl, allMenus) {
+    const actionTypes = ['submenu', 'reply', 'create_ticket', 'run_service_check'];
+    
+    formFieldsEl.innerHTML = `
+        <div class="form-group">
+            <label for="option-id">ID (Número a marcar)</label>
+            <input type="text" name="id" id="option-id" placeholder="Ej: 1, 2, 9" required>
+        </div>
+        <div class="form-group">
+            <label for="option-text">Texto de la Opción</label>
+            <input type="text" name="text" id="option-text" placeholder="Ej: Consultas Técnicas" required>
+        </div>
+        <div class="form-group">
+            <label for="action-type">Tipo de Acción</label>
+            <select name="type" id="action-type" required>
+                ${actionTypes.map(type => `<option value="${type}">${type}</option>`).join('')}
+            </select>
+        </div>
+        <div class="form-group" id="action-value-container">
+            <label for="action-value">Valor / Destino</label>
+            <!-- Este campo cambiará dinámicamente -->
+            <input type="text" name="value" id="action-value" required>
+        </div>
+    `;
+
+    // Lógica para cambiar el campo de valor dinámicamente
+    const actionTypeSelect = document.getElementById('action-type');
+    const valueContainer = document.getElementById('action-value-container');
+    
+    actionTypeSelect.addEventListener('change', (e) => {
+        const selectedType = e.target.value;
+        if (selectedType === 'submenu') {
+            valueContainer.innerHTML = `
+                <label for="action-value">Menú de Destino</label>
+                <select name="value" id="action-value" required>
+                    ${allMenus.map(menu => `<option value="${menu.id}">${menu.id}</option>`).join('')}
+                </select>
+            `;
+        } else {
+            valueContainer.innerHTML = `
+                <label for="action-value">Valor / Destino</label>
+                <input type="text" name="value" id="action-value" placeholder="Escribe el texto de respuesta o el nombre del ticket" required>
+            `;
+        }
+    });
+}
+
+// --- FIN DE MODIFICACIONES ---
+
 export function getSentimentHTML(sentiment) {
     if (!sentiment) {
         return `<span class="sentiment-icon sentiment-neutro"><i class="fas fa-question-circle"></i> N/A</span>`;
@@ -168,12 +318,6 @@ export function renderFaqs(tableBody, faqs) {
     });
 }
 
-// --- INICIO DE LA MODIFICACIÓN ---
-/**
- * Dibuja la tabla de FAQs de Soporte en el DOM.
- * @param {HTMLElement} tableBody - El elemento <tbody> de la tabla.
- * @param {Array} faqs - El array de objetos de FAQs de soporte.
- */
 export function renderSupportFaqs(tableBody, faqs) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
@@ -194,7 +338,6 @@ export function renderSupportFaqs(tableBody, faqs) {
         `;
     });
 }
-// --- FIN DE LA MODIFICACIÓN ---
 
 export function renderCompanyConfigForm(form, config) {
     if (!form) return;
@@ -287,4 +430,3 @@ export function renderVentasConfigForm(form, config) {
         <button type="submit">Guardar Ajustes del Bot</button>
     `;
 }
-
