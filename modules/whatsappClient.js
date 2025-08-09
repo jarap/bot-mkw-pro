@@ -180,7 +180,6 @@ class WhatsAppClient extends EventEmitter {
     }
 
     // --- INICIO DE LA MODIFICACIÓN ---
-    // Se reestructura esta función para manejar las 3 intenciones principales.
     async handleRegisteredClient(chatId, userMessage, currentState) {
         const intencion = await iaHandler.analizarIntencionGeneral(userMessage);
         console.log(chalk.cyan(`   -> Intención detectada por IA para cliente existente: ${intencion}`));
@@ -192,25 +191,31 @@ class WhatsAppClient extends EventEmitter {
             
             case 'ventas':
                 console.log(chalk.cyan(`   -> Cliente existente con intención de ventas. Reutilizando flujo de prospecto...`));
-                // Creamos un estado temporal para que la lógica de ventas funcione.
                 const salesState = {
-                    isClient: false, // Lo tratamos como prospecto para la lógica de ventas
+                    isClient: false,
                     chatHistory: [{ role: 'user', parts: [{ text: userMessage }] }],
                     prospectData: { name: currentState.clientData.nombre }
                 };
-                // Llamamos a la función que maneja a los nuevos prospectos, pasándole el mensaje actual.
                 await this.handleNewProspect(chatId, userMessage, salesState);
                 break;
 
             case 'pregunta_general':
-                console.log(chalk.cyan(`   -> Cliente existente con pregunta general. Consultando FAQs de Soporte...`));
-                // Usamos la nueva función para responder desde la base de conocimiento de soporte.
+                console.log(chalk.cyan(`   -> Cliente existente con pregunta general. Intentando auto-resolver con FAQs...`));
                 const faqResponse = await iaHandler.answerSupportQuestion(userMessage);
-                await this.client.sendMessage(chatId, faqResponse);
+                
+                // Se revisa la respuesta de la IA.
+                if (faqResponse === "[NO_ANSWER]") {
+                    // Si la IA no encontró respuesta, se crea un ticket.
+                    console.log(chalk.yellow(`   -> No se encontró respuesta en FAQs. Escalando a ticket de soporte.`));
+                    await this.createSupportTicket(chatId, userMessage, currentState.clientData);
+                } else {
+                    // Si la IA encontró una respuesta, se la envía al cliente.
+                    console.log(chalk.green(`   -> Respuesta encontrada en FAQs. Enviando al cliente.`));
+                    await this.client.sendMessage(chatId, faqResponse);
+                }
                 break;
 
             default:
-                // Si la intención no es clara, se mantiene un mensaje por defecto.
                 const welcomeBackMessage = `¡Hola de nuevo, ${currentState.clientData.nombre}! 😊\n\nRecordá que a través de este chat podés solicitar *soporte técnico* para tu servicio. Si tenés algún problema, no dudes en describirlo y te ayudaremos.`;
                 await this.client.sendMessage(chatId, welcomeBackMessage);
                 break;

@@ -2,10 +2,7 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAuth } = require('google-auth-library');
 const chalk = require('chalk');
-// --- INICIO DE LA MODIFICACIÓN ---
-// Importamos la nueva función 'getSupportFaqs' además de 'db'.
 const { db, getSupportFaqs } = require('./firestore_handler');
-// --- FIN DE LA MODIFICACIÓN ---
 
 const auth = new GoogleAuth({
     keyFilename: './firebase-credentials.json',
@@ -174,11 +171,6 @@ async function analizarSentimiento(userMessage) {
 }
 
 // --- INICIO DE LA MODIFICACIÓN ---
-/**
- * Responde una pregunta general de un cliente usando las FAQs de soporte.
- * @param {string} userMessage - El mensaje del cliente.
- * @returns {Promise<string>} La respuesta generada por la IA.
- */
 async function answerSupportQuestion(userMessage) {
     try {
         console.log(chalk.cyan('   -> Buscando respuesta en FAQs de Soporte...'));
@@ -186,7 +178,7 @@ async function answerSupportQuestion(userMessage) {
 
         if (supportFaqs.length === 0) {
             console.log(chalk.yellow('   -> No se encontraron FAQs de soporte en la base de datos.'));
-            return "Lo siento, no pude encontrar una respuesta a tu pregunta en este momento. Un agente revisará tu consulta.";
+            return "[NO_ANSWER]"; // Devuelve la señal si no hay FAQs
         }
 
         let knowledgeString = "Preguntas Frecuentes de Soporte:\n";
@@ -194,7 +186,11 @@ async function answerSupportQuestion(userMessage) {
             knowledgeString += `- P: ${faq.pregunta}\n  R: ${faq.respuesta}\n`;
         });
 
-        const systemPrompt = `Eres I-Bot, un asistente virtual de soporte técnico. Tu única tarea es responder la pregunta del cliente basándote estrictamente en la siguiente lista de Preguntas Frecuentes. Si la pregunta del cliente no se puede responder con la información proporcionada, debes responder exactamente: "No encontré una respuesta para tu consulta. Un agente la revisará para ayudarte."
+        // Se actualizan las instrucciones para la IA.
+        const systemPrompt = `Eres I-Bot, un asistente virtual de soporte técnico. Tu tarea es responder la pregunta del cliente basándote estrictamente en la siguiente lista de Preguntas Frecuentes.
+        REGLAS IMPORTANTES:
+        1. Si la pregunta del cliente se puede responder con la información proporcionada, responde de forma amable y directa.
+        2. Si la pregunta del cliente NO se puede responder con la información, debes responder ÚNICAMENTE con la frase: "[NO_ANSWER]". No añadas nada más.
 
         **Base de Conocimiento (ÚNICA fuente de verdad):**
         ---
@@ -221,7 +217,5 @@ module.exports = {
     analizarConfirmacion,
     analizarIntencionGeneral,
     analizarSentimiento,
-    // --- INICIO DE LA MODIFICACIÓN ---
-    answerSupportQuestion, // Exportamos la nueva función
-    // --- FIN DE LA MODIFICACIÓN ---
+    answerSupportQuestion,
 };
