@@ -34,7 +34,7 @@ class WhatsAppClient extends EventEmitter {
     }
 
     initialize() {
-        if (this.client || this.status === 'INICIALIZANDO') return;
+        if (this.client || this.status === 'INICIALIZING') return;
         this.updateStatus('INICIALIZANDO');
         this.client = new Client({
             authStrategy: new LocalAuth({ clientId: "bot_mkw" }),
@@ -108,19 +108,18 @@ class WhatsAppClient extends EventEmitter {
                 currentState = { isClient: true, clientData: resultByPhone.data };
                 await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                 await this.sendWelcomeMessage(chatId, resultByPhone.data);
-                await this.handleRegisteredClient(chatId, userMessage, currentState);
-                return;
+                // No llamamos a handleRegisteredClient aquí para no procesar el primer "hola" como una consulta.
+            } else {
+                console.log(chalk.yellow(`   -> Celular no encontrado. Iniciando flujo de ventas...`));
+                const configResult = await firestoreHandler.getVentasConfig();
+                const welcomeMessage = configResult.success ? configResult.data.mensajeBienvenida : "¡Hola! Soy Luciana, tu asistente virtual.";
+                const identificationMessage = `${welcomeMessage}\n\nPara poder ayudarte, por favor, responde con tu *DNI/CUIT* si ya eres cliente, o con tu *nombre* si deseas consultar por nuestros servicios.`;
+                
+                await this.client.sendMessage(chatId, identificationMessage);
+                
+                currentState = { step: 'awaiting_identification' };
+                await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
             }
-            
-            console.log(chalk.yellow(`   -> Celular no encontrado. Iniciando proceso de identificación manual...`));
-            const configResult = await firestoreHandler.getVentasConfig();
-            const welcomeMessage = configResult.success ? configResult.data.mensajeBienvenida : "¡Hola! Soy Luciana, tu asistente virtual.";
-            const identificationMessage = `${welcomeMessage}\n\nPara poder ayudarte, por favor, responde con tu *DNI/CUIT* si ya eres cliente, o con tu *nombre* si deseas consultar por nuestros servicios.`;
-            
-            await this.client.sendMessage(chatId, identificationMessage);
-            
-            currentState = { step: 'awaiting_identification' };
-            await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
             return;
         }
 
@@ -137,7 +136,6 @@ class WhatsAppClient extends EventEmitter {
                         currentState = { isClient: true, clientData: result.data };
                         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                         await this.sendWelcomeMessage(chatId, result.data);
-                        await this.handleRegisteredClient(chatId, "consulta", currentState);
                     } else {
                         console.log(chalk.yellow(`   -> DNI/CUIT no encontrado. Transicionando a flujo de ventas.`));
                         await this.client.sendMessage(chatId, "No pude encontrarte en nuestro sistema con ese número. Me gustaría ayudarte, para eso, ¿podrías decirme tu nombre?");
@@ -181,49 +179,32 @@ class WhatsAppClient extends EventEmitter {
 
     // --- INICIO DE LA MODIFICACIÓN ---
     async handleRegisteredClient(chatId, userMessage, currentState) {
-        const intencion = await iaHandler.analizarIntencionGeneral(userMessage);
-        console.log(chalk.cyan(`   -> Intención detectada por IA para cliente existente: ${intencion}`));
+        // 1. Regla Rígida: Comprobar la frase exacta para solicitar soporte.
+        if (userMessage.toLowerCase() === 'solicito soporte') {
+            console.log(chalk.green.bold(`   -> Frase clave 'solicito soporte' detectada. Creando ticket...`));
+            await this.createSupportTicket(chatId, "El cliente solicitó soporte explícitamente.", currentState.clientData);
+            return; // Termina la ejecución aquí.
+        }
 
-        switch (intencion) {
-            case 'soporte':
-                await this.createSupportTicket(chatId, userMessage, currentState.clientData);
-                break;
-            
-            case 'ventas':
-                console.log(chalk.cyan(`   -> Cliente existente con intención de ventas. Reutilizando flujo de prospecto...`));
-                const salesState = {
-                    isClient: false,
-                    chatHistory: [{ role: 'user', parts: [{ text: userMessage }] }],
-                    prospectData: { name: currentState.clientData.nombre }
-                };
-                await this.handleNewProspect(chatId, userMessage, salesState);
-                break;
-
-            case 'pregunta_general':
-                console.log(chalk.cyan(`   -> Cliente existente con pregunta general. Intentando auto-resolver con FAQs...`));
-                const faqResponse = await iaHandler.answerSupportQuestion(userMessage);
-                
-                // Se revisa la respuesta de la IA.
-                if (faqResponse === "[NO_ANSWER]") {
-                    // Si la IA no encontró respuesta, se crea un ticket.
-                    console.log(chalk.yellow(`   -> No se encontró respuesta en FAQs. Escalando a ticket de soporte.`));
-                    await this.createSupportTicket(chatId, userMessage, currentState.clientData);
-                } else {
-                    // Si la IA encontró una respuesta, se la envía al cliente.
-                    console.log(chalk.green(`   -> Respuesta encontrada en FAQs. Enviando al cliente.`));
-                    await this.client.sendMessage(chatId, faqResponse);
-                }
-                break;
-
-            default:
-                const welcomeBackMessage = `¡Hola de nuevo, ${currentState.clientData.nombre}! 😊\n\nRecordá que a través de este chat podés solicitar *soporte técnico* para tu servicio. Si tenés algún problema, no dudes en describirlo y te ayudaremos.`;
-                await this.client.sendMessage(chatId, welcomeBackMessage);
-                break;
+        // 2. Si no es la frase de soporte, intentar resolver con la IA.
+        console.log(chalk.cyan(`   -> Intentando auto-resolver con FAQs...`));
+        const faqResponse = await iaHandler.answerSupportQuestion(userMessage);
+        
+        if (faqResponse === "[NO_ANSWER]") {
+            // 3. Si la IA no puede responder, guiar al usuario.
+            console.log(chalk.yellow(`   -> No se encontró respuesta en FAQs. Guiando al usuario.`));
+            const guidanceMessage = "No encontré una respuesta automática para tu consulta. Para hablar con un agente, por favor, envía un mensaje que diga exactamente: *solicito soporte*";
+            await this.client.sendMessage(chatId, guidanceMessage);
+        } else {
+            // 4. Si la IA encuentra una respuesta, la envía.
+            console.log(chalk.green(`   -> Respuesta encontrada en FAQs. Enviando al cliente.`));
+            await this.client.sendMessage(chatId, faqResponse);
         }
     }
     // --- FIN DE LA MODIFICACIÓN ---
 
     async handleNewProspect(chatId, userMessage, currentState) {
+        // ... (El resto de la función 'handleNewProspect' no necesita cambios)
         if (currentState.awaiting_sales_confirmation) {
             console.log(chalk.cyan(`   -> Analizando respuesta de confirmación: "${userMessage}"`));
             const intencion = await iaHandler.analizarConfirmacion(userMessage);
@@ -561,7 +542,7 @@ class WhatsAppClient extends EventEmitter {
     
     async sendWelcomeMessage(chatId, clientData) {
         let responseMessage = `*¡Hola, ${clientData.nombre}!* 👋\n\n`;
-        responseMessage += `Soy I-Bot, tu asistente virtual de UltraWIFI.\n\n`;
+        responseMessage += `Soy I-Bot, tu asistente virtual.\n\n`;
         responseMessage += `Resumen de tu cuenta:\n`;
         responseMessage += `*Estado:* ${clientData.estado}\n`;
         responseMessage += `*Deuda Total:* ${clientData.facturacion.total_facturas}\n\n`;
@@ -583,7 +564,7 @@ class WhatsAppClient extends EventEmitter {
                 responseMessage += `${analysisMessage}\n`;
             });
         }
-        responseMessage += `\n\nPara solicitar *soporte técnico*, simplemente describe tu problema.`;
+        responseMessage += `\n\nSi tenés alguna consulta, no dudes en escribirla. Para hablar con un agente, enviá la frase: *solicito soporte*`;
         this.client.sendMessage(chatId, responseMessage);
     }
 
