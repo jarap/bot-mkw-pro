@@ -25,6 +25,30 @@ class WhatsAppClient extends EventEmitter {
         this.initializeSupportPool();
     }
 
+    // --- INICIO DE LA MODIFICACIÓN ---
+    /**
+     * Actualizador central para el estado de una sesión en Redis.
+     * Garantiza que la sesión se guarde en todas sus llaves asociadas,
+     * eliminando propiedades no serializables.
+     * @param {object} session - El objeto de la sesión a guardar.
+     */
+    async _updateSessionState(session) {
+        if (!session || !session.ticketId) return;
+
+        // Se crea una copia de la sesión para no modificar el objeto original en memoria.
+        const savableSession = { ...session };
+        // Se elimina la propiedad 'timeoutId' que contiene la estructura circular.
+        delete savableSession.timeoutId;
+
+        // Se guarda la copia limpia en todas las llaves de Redis.
+        await redisClient.set(`session:${session.ticketId}`, savableSession);
+        await redisClient.set(`session_client:${session.clientChatId}`, savableSession);
+        if (session.assignedGroup) {
+            await redisClient.set(`session_group:${session.assignedGroup}`, savableSession);
+        }
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
+
     initializeSupportPool() {
         const groupIds = process.env.SUPPORT_CHAT_GROUP_IDS || '';
         groupIds.split(',').forEach(id => {
@@ -98,14 +122,11 @@ class WhatsAppClient extends EventEmitter {
 
         let currentState = await redisClient.get(`state:${chatId}`);
         
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Se añade una comprobación para el estado 'awaiting_agent'.
         if (currentState && currentState.awaiting_agent) {
             console.log(chalk.yellow(`   -> Cliente con ticket pendiente. Enviando mensaje de espera.`));
             await this.client.sendMessage(chatId, "¡Hola! Ya tenés una solicitud de soporte abierta. Un agente te responderá por este mismo chat a la brevedad. Por favor, aguardá la respuesta. 👍");
-            return; // Detiene la ejecución para no procesar más.
+            return;
         }
-        // --- FIN DE LA MODIFICACIÓN ---
         
         if (!currentState) {
             console.log(chalk.yellow(`   -> Nuevo contacto. Verificando número de celular en Mikrowisp...`));
@@ -335,10 +356,7 @@ class WhatsAppClient extends EventEmitter {
                     Estado: 'En Progreso'
                 });
 
-                await redisClient.set(`session:${session.ticketId}`, session);
-                await redisClient.set(`session_client:${session.clientChatId}`, session);
-                await redisClient.set(`session_group:${session.assignedGroup}`, session);
-
+                await this._updateSessionState(session);
 
                 await this.client.sendMessage(triageGroupId, `✅ El agente *${agentName}* ha tomado el caso del cliente ${session.clientName}. La conversación continúa en el grupo de chat asignado.`);
                 await this.client.sendMessage(freeGroup, `*Nuevo Caso Asignado*\n\n*Cliente:* ${session.clientName}\n*Agente:* ${agentName}\n\n*Mensaje Original:* "${session.initialMessage}"\n\n*Puedes empezar a responder en este chat.*`);
@@ -377,7 +395,7 @@ class WhatsAppClient extends EventEmitter {
                 await this.client.sendMessage(message.from, '✅ Agendamiento cancelado.');
             }
             delete session.pendingAppointment;
-            await redisClient.set(`session:${session.ticketId}`, session);
+            await this._updateSessionState(session);
             return;
         }
 
@@ -400,23 +418,14 @@ class WhatsAppClient extends EventEmitter {
                 const eventEndDate = new Date(eventDate.getTime() + 60 * 60 * 1000);
                 const title = `Visita Técnica - ${session.clientName}`;
                 const description = `Cliente: ${session.clientName}\nCelular: ${session.clientChatId.replace('@c.us','')}\nProblema: ${commandText}`;
-                session.pendingAppointment = { title, description, eventDate: eventDate.toISOString(), eventEndDate: eventEndDate.toISOString() };
                 
-                await redisClient.set(`session:${session.ticketId}`, session);
+                session.pendingAppointment = { title, description, eventDate: eventDate.toISOString(), eventEndDate: eventEndDate.toISOString() };
+                await this._updateSessionState(session);
 
                 const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
                 const friendlyDate = eventDate.toLocaleDateString('es-AR', options);
                 await this.client.sendMessage(message.from, `🗓️ Estás por agendar una visita para el *${friendlyDate} hs*.\n\n¿Es correcto? Responde *si* o *no*.`);
                 return;
-            }
-            const quickReply = await firestoreHandler.getQuickReply(command);
-            if (quickReply) {
-                const personalizedReply = quickReply
-                    .replace(/{cliente}/g, session.clientName)
-                    .replace(/{agente}/g, session.agentName || 'el agente asignado');
-                await this.client.sendMessage(session.clientChatId, personalizedReply);
-            } else {
-                await this.client.sendMessage(message.from, `🔴 Comando "${command}" no reconocido.`);
             }
         } else {
             await this.relayToClient(session, message);
@@ -477,12 +486,9 @@ class WhatsAppClient extends EventEmitter {
             await this.client.sendMessage(clientChatId, '✅ Tu solicitud ha sido enviada. Un agente la tomará en breve.');
             this.emit('sessionsUpdate');
             
-            // --- INICIO DE LA MODIFICACIÓN ---
-            // Se actualiza el estado del cliente a 'awaiting_agent' en lugar de borrarlo.
             const newState = { awaiting_agent: true };
             await redisClient.set(`state:${clientChatId}`, newState, STATE_TTL_SECONDS);
             console.log(chalk.magenta(`   -> Estado del cliente ${clientChatId} actualizado a 'awaiting_agent'.`));
-            // --- FIN DE LA MODIFICACIÓN ---
 
         } catch (error) {
             console.error(chalk.red.bold('❌ ERROR CRÍTICO al crear ticket de soporte:'));
@@ -540,11 +546,8 @@ class WhatsAppClient extends EventEmitter {
 
         await this.client.sendMessage(session.clientChatId, `Tu sesión de soporte ha finalizado (motivo: ${reason}). Si necesitas algo más, no dudes en escribirnos de nuevo. ¡Que tengas un buen día!`);
         
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Se asegura de que el estado del cliente se borre completamente al cerrar la sesión.
         await redisClient.del(`state:${session.clientChatId}`);
         console.log(chalk.magenta(`   -> Estado del cliente ${session.clientChatId} reseteado.`));
-        // --- FIN DE LA MODIFICACIÓN ---
         
         if (session.assignedGroup) {
             await this.client.sendMessage(session.assignedGroup, `✅ La sesión con *${session.clientName}* ha sido cerrada y este grupo está libre.`);
@@ -557,7 +560,7 @@ class WhatsAppClient extends EventEmitter {
         if (session.timeoutId) clearTimeout(session.timeoutId);
         
         session.lastActivity = Date.now();
-        redisClient.set(`session:${session.ticketId}`, session);
+        this._updateSessionState(session);
 
         session.timeoutId = setTimeout(() => {
             this.closeSupportSession(session, 'inactividad');
