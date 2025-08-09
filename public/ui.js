@@ -6,10 +6,6 @@ import * as render from './render.js';
 let allTickets = [];
 let currentFilterStatus = 'all';
 
-/**
- * Actualiza el logo y el nombre de la empresa en la cabecera del panel.
- * @param {object} config - El objeto de configuración de la empresa.
- */
 export function updateHeaderBranding(config) {
     const logoElement = document.getElementById('header-logo');
     const nameElement = document.getElementById('header-company-name');
@@ -102,7 +98,10 @@ export function initializeUISidebar() {
     menuToggleBtn?.addEventListener('click', () => sidebar.classList.toggle('show'));
 }
 
-export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompanyConfig, loadAndRenderVentasConfig, renderCurrentTickets) {
+// --- INICIO DE LA MODIFICACIÓN ---
+// Se añade 'loadAndRenderCalendar' como un nuevo parámetro (callback).
+export function initializeUINavigation(callbacks) {
+// --- FIN DE LA MODIFICACIÓN ---
     const navLinks = document.querySelectorAll('.sidebar-nav a');
     const mainSections = document.querySelectorAll('.main-section');
     const settingsGrid = document.querySelector('.settings-grid');
@@ -116,10 +115,7 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
         if (linkToActivate) {
              linkToActivate.parentElement.classList.add('active');
         } else {
-            // --- INICIO DE LA MODIFICACIÓN ---
-            // Se añade 'faq-soporte' a la lista de pestañas que dependen de 'Ajustes'.
             const parentTab = ['planes', 'promociones', 'faq', 'ajustes-empresa', 'zonas-cobertura', 'ajustes-bot-venta', 'faq-soporte'].includes(targetId) ? 'ajustes' : null;
-            // --- FIN DE LA MODIFICACIÓN ---
             if (parentTab) {
                 const parentLink = document.querySelector(`.sidebar-nav a[data-target="${parentTab}"]`);
                 parentLink?.parentElement.classList.add('active');
@@ -128,27 +124,12 @@ export function initializeUINavigation(forceReloadSalesData, loadAndRenderCompan
 
         mainSections.forEach(section => section.classList.toggle('active', section.id === targetId));
 
-        if (targetId === 'history') {
-            if (renderCurrentTickets) {
-                renderCurrentTickets();
-            }
-        }
-
         // --- INICIO DE LA MODIFICACIÓN ---
-        // Se añade 'faq-soporte' a la lista de pestañas que fuerzan la recarga de datos.
-        const salesTabs = ['planes', 'promociones', 'faq', 'zonas-cobertura', 'faq-soporte'];
+        // Se utiliza un objeto de callbacks para mantener el código limpio y escalable.
+        if (callbacks[targetId]) {
+            callbacks[targetId]();
+        }
         // --- FIN DE LA MODIFICACIÓN ---
-        if (salesTabs.includes(targetId)) {
-            forceReloadSalesData();
-        }
-
-        if (targetId === 'ajustes-empresa') {
-            loadAndRenderCompanyConfig();
-        }
-
-        if (targetId === 'ajustes-bot-venta') {
-            loadAndRenderVentasConfig();
-        }
     }
 
     navLinks.forEach(link => {

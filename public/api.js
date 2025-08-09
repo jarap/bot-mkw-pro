@@ -15,14 +15,13 @@ async function fetchData(url, options = {}) {
             throw new Error(errorBody.message || `HTTP error! status: ${response.status}`);
         }
         const result = await response.json();
-        // Se ajusta para manejar respuestas que no necesariamente tienen un campo 'success'
         if (result.success === false) {
              throw new Error(result.message || 'La API devolvió un error no exitoso.');
         }
         return result.data || result;
     } catch (error) {
         console.error(`[API ERROR] Fallo en la petición a ${url}:`, error);
-        throw error; // Relanzamos el error para que el llamador pueda manejarlo.
+        throw error;
     }
 }
 
@@ -33,8 +32,9 @@ export const getTickets = () => fetchData('/api/tickets');
 export const getActiveSessions = () => fetchData('/api/activesessions');
 export const getSalesData = () => fetchData('/api/salesdata');
 export const getCompanyConfig = () => fetchData('/api/config/empresa');
-// --- INICIO DE LA MODIFICACIÓN ---
 export const getVentasConfig = () => fetchData('/api/config/ventas');
+// --- INICIO DE LA MODIFICACIÓN ---
+export const getCalendarEvents = () => fetchData('/api/calendar/events');
 // --- FIN DE LA MODIFICACIÓN ---
 
 // --- Funciones de acción (POST, PUT, DELETE) ---
@@ -60,13 +60,11 @@ export const saveCompanyConfig = (data) => fetchData('/api/config/empresa', {
     body: JSON.stringify(data),
 });
 
-// --- INICIO DE LA MODIFICACIÓN ---
 export const saveVentasConfig = (data) => fetchData('/api/config/ventas', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
 });
-// --- FIN DE LA MODIFICACIÓN ---
 
 export const addItem = (collection, data) => fetchData(`/api/data/${collection}`, {
     method: 'POST',

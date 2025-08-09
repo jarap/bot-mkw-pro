@@ -8,22 +8,22 @@ const { WebSocketServer } = require('ws');
 const qrcode = require('qrcode');
 const chalk = require('chalk');
 const multer = require('multer');
+// --- INICIO DE LA MODIFICACIÓN ---
+// Importamos el manejador del calendario para poder usar sus funciones.
+const calendarHandler = require('./calendar_handler');
+// --- FIN DE LA MODIFICACIÓN ---
 
 const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
     fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// --- INICIO DE LA MODIFICACIÓN ---
-// Se cambia la configuración de almacenamiento para usar un nombre de archivo fijo.
 const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, uploadsDir),
     filename: (req, file, cb) => {
-        // En lugar de un nombre único, usamos siempre "logo-empresa" manteniendo la extensión original.
         cb(null, 'logo-empresa' + path.extname(file.originalname));
     }
 });
-// --- FIN DE LA MODIFICACIÓN ---
 
 const upload = multer({ storage: storage });
 
@@ -76,6 +76,15 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         const result = await firestoreHandler.getAllTickets();
         res.status(result.success ? 200 : 500).json(result);
     });
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Se añade el nuevo endpoint para obtener los eventos del calendario.
+    app.get('/api/calendar/events', checkAuth, async (req, res) => {
+        const result = await calendarHandler.getEvents();
+        res.status(result.success ? 200 : 500).json(result);
+    });
+    // --- FIN DE LA MODIFICACIÓN ---
+
     app.get('/api/salesdata', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getSalesData();
         res.status(result.success ? 200 : 500).json(result);

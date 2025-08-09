@@ -12,13 +12,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let state = {
         tickets: [],
-        // --- INICIO DE LA MODIFICACIÓN ---
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] }, soporteFaqs: [] },
-        // --- FIN DE LA MODIFICACIÓN ---
         companyConfig: {},
         ventasConfig: {},
         activeSessions: []
     };
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Se añade la referencia al contenedor del calendario y una variable para la instancia.
+    let calendarInstance = null;
+    // --- FIN DE LA MODIFICACIÓN ---
 
     const dom = {
         ticketsTableBody: document.getElementById('tickets-table-body'),
@@ -26,10 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
         planesTableBody: document.getElementById('planes-table-body'),
         promosTableBody: document.getElementById('promos-table-body'),
         faqTableBody: document.getElementById('faq-table-body'),
-        // --- INICIO DE LA MODIFICACIÓN ---
         supportFaqTableBody: document.getElementById('support-faq-table-body'),
         addSupportFaqBtn: document.getElementById('add-support-faq-btn'),
-        // --- FIN DE LA MODIFICACIÓN ---
         companyConfigForm: document.getElementById('company-config-form'),
         ventasConfigForm: document.getElementById('ventas-config-form'),
         zonasTableBody: document.getElementById('zonas-table-body'),
@@ -40,6 +41,9 @@ document.addEventListener('DOMContentLoaded', () => {
         sendMessageForm: document.getElementById('send-message-form'),
         connectBtn: document.getElementById('connect-btn'),
         disconnectBtn: document.getElementById('disconnect-btn'),
+        // --- INICIO DE LA MODIFICACIÓN ---
+        calendarContainer: document.getElementById('calendar-container'),
+        // --- FIN DE LA MODIFICACIÓN ---
     };
 
     async function loadInitialData() {
@@ -70,9 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             render.renderPromos(dom.promosTableBody, state.salesData.promociones);
             render.renderFaqs(dom.faqTableBody, state.salesData.preguntasFrecuentes);
             render.renderZonasCobertura(dom.zonasTableBody, state.salesData.zonasCobertura);
-            // --- INICIO DE LA MODIFICACIÓN ---
             render.renderSupportFaqs(dom.supportFaqTableBody, state.salesData.soporteFaqs);
-            // --- FIN DE LA MODIFICACIÓN ---
 
         } catch (error) {
             console.error("Fallo en la recarga de datos de ventas.", error);
@@ -104,6 +106,50 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    /**
+     * Carga los eventos y renderiza el calendario en el DOM.
+     */
+    async function loadAndRenderCalendar() {
+        if (!dom.calendarContainer) return;
+
+        // Si ya existe una instancia del calendario, la destruimos para evitar duplicados.
+        if (calendarInstance) {
+            calendarInstance.destroy();
+        }
+
+        try {
+            const events = await api.getCalendarEvents();
+            
+            calendarInstance = new FullCalendar.Calendar(dom.calendarContainer, {
+                initialView: 'dayGridMonth', // Vista mensual por defecto
+                locale: 'es', // Calendario en español
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                },
+                events: events, // Aquí se cargan los eventos obtenidos de la API
+                eventClick: function(info) {
+                    // Muestra los detalles del evento en un modal de alerta.
+                    modals.showCustomAlert(
+                        info.event.title,
+                        `Descripción: ${info.event.extendedProps.description || 'No disponible'}\n` +
+                        `Inicio: ${info.event.start.toLocaleString()}\n` +
+                        `Fin: ${info.event.end ? info.event.end.toLocaleString() : 'N/A'}`
+                    );
+                }
+            });
+
+            calendarInstance.render();
+
+        } catch (error) {
+            dom.calendarContainer.innerHTML = `<p class="error-message">No se pudieron cargar los eventos del calendario.</p>`;
+            console.error("Fallo al cargar o renderizar el calendario.", error);
+        }
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
 
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -177,16 +223,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function initializeEventListeners() {
         ui.initializeUISidebar();
-        ui.initializeUINavigation(
-            forceReloadSalesData, 
-            loadAndRenderCompanyConfig, 
-            loadAndRenderVentasConfig,
-            renderCurrentTickets
-        );
+        
         // --- INICIO DE LA MODIFICACIÓN ---
-        // Se pasa la nueva función openSalesModal al inicializador de modales.
-        modals.initializeModals(modals.openSalesModal, forceReloadSalesData);
+        // Se crea un objeto con los callbacks para pasarlo a la función de navegación.
+        const navigationCallbacks = {
+            'history': renderCurrentTickets,
+            'calendar': loadAndRenderCalendar,
+            'planes': forceReloadSalesData,
+            'promociones': forceReloadSalesData,
+            'faq': forceReloadSalesData,
+            'zonas-cobertura': forceReloadSalesData,
+            'faq-soporte': forceReloadSalesData,
+            'ajustes-empresa': loadAndRenderCompanyConfig,
+            'ajustes-bot-venta': loadAndRenderVentasConfig
+        };
+        ui.initializeUINavigation(navigationCallbacks);
         // --- FIN DE LA MODIFICACIÓN ---
+
+        modals.initializeModals(modals.openSalesModal, forceReloadSalesData);
 
         document.body.addEventListener('click', (e) => {
             const viewButton = e.target.closest('.view-ticket-btn');
@@ -374,12 +428,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Se añade el event listener para el nuevo botón "Añadir Pregunta" de las FAQs de Soporte.
         dom.addSupportFaqBtn?.addEventListener('click', () => {
             modals.openSalesModal('soporteFAQ', {}, state.salesData);
         });
-        // --- FIN DE LA MODIFICACIÓN ---
 
         document.body.addEventListener('click', (e) => {
             if (!e.target.closest('#sales-modal-overlay')) return;

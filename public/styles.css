@@ -312,8 +312,6 @@ input:checked + .switch-slider:before {
     margin-bottom: 0.5rem;
 }
 
-/* --- INICIO DE LA MODIFICACIÓN --- */
-/* Estilos para los botones de zona y acciones de selección */
 .modern-form .zone-btn {
     background-color: var(--color-danger);
     color: var(--color-white);
@@ -353,7 +351,6 @@ input:checked + .switch-slider:before {
     background: var(--color-danger);
     opacity: 0.8;
 }
-/* --- FIN DE LA MODIFICACIÓN --- */
 
 @media screen and (max-width: 1200px) {
     .dashboard-container { width: 94%; grid-template-columns: 7rem auto; }
@@ -413,3 +410,50 @@ input:checked + .switch-slider:before {
 .sentiment-neutro { background-color: #677483; }
 .sentiment-frustrado { background-color: #ffbb55; }
 .sentiment-enojado { background-color: #ff7782; }
+
+/* Estilos para FullCalendar */
+#calendar-container {
+    min-height: 70vh; /* Asegura que el calendario tenga suficiente altura */
+    font-size: 0.9rem;
+}
+
+.fc {
+    --fc-border-color: var(--color-info-light);
+    --fc-today-bg-color: rgba(115, 128, 236, 0.1);
+    --fc-event-bg-color: var(--color-primary);
+    --fc-event-border-color: var(--color-primary-variant);
+    --fc-event-text-color: var(--color-white);
+    --fc-button-bg-color: var(--color-primary);
+    --fc-button-border-color: var(--color-primary);
+    --fc-button-hover-bg-color: var(--color-primary-variant);
+    --fc-button-hover-border-color: var(--color-primary-variant);
+    --fc-button-active-bg-color: var(--color-primary-variant);
+    --fc-button-active-border-color: var(--color-primary-variant);
+}
+
+.fc .fc-toolbar-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--color-dark);
+}
+
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.fc .fc-event {
+    padding: 5px;
+    border-radius: var(--border-radius-1);
+    cursor: pointer;
+    transition: opacity 300ms ease;
+}
+
+.fc .fc-event:hover {
+    opacity: 0.8;
+}
+
+.fc .fc-popover {
+    border-radius: var(--border-radius-2);
+    box-shadow: var(--box-shadow);
+}

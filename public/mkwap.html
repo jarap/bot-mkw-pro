@@ -7,6 +7,8 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Se añade la librería FullCalendar para renderizar el calendario -->
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
 </head>
 <body>
     <div class="dashboard-container">
@@ -19,6 +21,7 @@
                 <h3>General</h3>
                 <ul>
                     <li class="active"><a href="#" data-target="dashboard"><i class="fas fa-tachometer-alt"></i><span>Dashboard</span></a></li>
+                    <li><a href="#" data-target="calendar"><i class="fas fa-calendar-alt"></i><span>Calendario</span></a></li>
                     <li><a href="#" data-target="sessions"><i class="fas fa-headset"></i><span>Sesiones Activas</span></a></li>
                     <li><a href="#" data-target="history"><i class="fas fa-history"></i><span>Historial de Tickets</span></a></li>
                 </ul>
@@ -125,7 +128,72 @@
                         </div>
                     </div>
                 </div>
+
+                <div id="calendar" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Calendario de Visitas Técnicas</h3>
+                        </div>
+                        <div class="card-body" id="calendar-container">
+                            <!-- El calendario se renderizará aquí mediante JavaScript -->
+                        </div>
+                    </div>
+                </div>
                 
+                <div id="sessions" class="main-section">
+                    <div class="card">
+                        <div class="card-header"><h3>Sesiones de Soporte Activas</h3></div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Cliente</th><th>Agente Asignado</th><th>Estado</th><th>Tiempo Activo</th><th>Última Actividad</th></tr></thead>
+                                <tbody id="sessions-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <div id="history" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Historial de Tickets Recientes</h3>
+                            <div class="filter-controls" id="ticket-filter-buttons">
+                                <button class="filter-btn active" data-status="all">Todos</button>
+                                <button class="filter-btn" data-status="Pendiente">Pendiente</button>
+                                <button class="filter-btn" data-status="En Progreso">En Progreso</button>
+                                <button class="filter-btn" data-status="Cerrado">Cerrado</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Fecha</th><th>Cliente</th><th>Agente Asignado</th><th>Estado</th><th>Sentimiento</th><th>Acciones</th></tr></thead>
+                                <tbody id="tickets-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="tools" class="main-section">
+                    <div class="tools-grid">
+                        <div class="card">
+                            <div class="card-header"><h3>Enviar Mensaje Manual</h3></div>
+                            <div class="card-body">
+                                <form id="send-message-form" class="modern-form">
+                                    <input type="text" id="manual-recipient" placeholder="Número de WhatsApp (ej: 1122334455)" required>
+                                    <textarea id="manual-message" rows="3" placeholder="Escribe tu mensaje aquí..." required></textarea>
+                                    <button type="submit" id="send-manual-btn"><i class="fas fa-paper-plane"></i> Enviar Mensaje</button>
+                                    <p id="send-feedback" class="feedback-message"></p>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="card">
+                            <div class="card-header"><h3>Acciones del Bot</h3></div>
+                            <div class="card-body actions-body">
+                                <button id="connect-btn" class="action-btn connect"><i class="fas fa-play-circle"></i> Conectar</button>
+                                <button id="disconnect-btn" class="action-btn disconnect"><i class="fas fa-stop-circle"></i> Desconectar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div id="ajustes" class="main-section">
                     <div class="card">
                         <div class="card-header">
@@ -157,13 +225,22 @@
                                     <div class="settings-icon"><i class="fas fa-question-circle"></i></div>
                                     <span>FAQs de Ventas</span>
                                 </a>
-                                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
                                 <a href="#" class="settings-card" data-target="faq-soporte">
                                     <div class="settings-icon"><i class="fas fa-headset"></i></div>
                                     <span>FAQs de Soporte</span>
                                 </a>
-                                <!-- --- FIN DE LA MODIFICACIÓN --- -->
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="ajustes-empresa" class="main-section">
+                    <div class="card">
+                        <div class="card-header"><h3>Ajustes de Empresa</h3>
+                            <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                        </div>
+                        <div class="card-body">
+                            <form id="company-config-form" class="modern-form"></form>
                         </div>
                     </div>
                 </div>
@@ -176,6 +253,40 @@
                         </div>
                         <div class="card-body">
                             <form id="ventas-config-form" class="modern-form"></form>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="planes" class="main-section">
+                     <div class="card">
+                        <div class="card-header"><h3>Planes de Internet</h3>
+                            <div>
+                                <button class="action-btn-small" id="add-plan-btn"><i class="fas fa-plus"></i> Añadir Plan</button>
+                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Nombre</th><th>Precio</th><th>Velocidad (Bajada/Subida)</th><th>Ideal Para</th><th>Acciones</th></tr></thead>
+                                <tbody id="planes-table-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="promociones" class="main-section">
+                     <div class="card">
+                        <div class="card-header"><h3>Promociones Especiales</h3>
+                            <div>
+                                <button class="action-btn-small" id="add-promo-btn"><i class="fas fa-plus"></i> Añadir Promoción</button>
+                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <table class="tickets-table">
+                                <thead><tr><th>Nombre</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr></thead>
+                                <tbody id="promos-table-body"></tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -204,68 +315,6 @@
                     </div>
                 </div>
 
-                <div id="sessions" class="main-section">
-                    <div class="card">
-                        <div class="card-header"><h3>Sesiones de Soporte Activas</h3></div>
-                        <div class="card-body">
-                            <table class="tickets-table">
-                                <thead><tr><th>Cliente</th><th>Agente Asignado</th><th>Estado</th><th>Tiempo Activo</th><th>Última Actividad</th></tr></thead>
-                                <tbody id="sessions-table-body"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <div id="history" class="main-section">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3>Historial de Tickets Recientes</h3>
-                            <div class="filter-controls" id="ticket-filter-buttons">
-                                <button class="filter-btn active" data-status="all">Todos</button>
-                                <button class="filter-btn" data-status="Pendiente">Pendiente</button>
-                                <button class="filter-btn" data-status="En Progreso">En Progreso</button>
-                                <button class="filter-btn" data-status="Cerrado">Cerrado</button>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <table class="tickets-table">
-                                <thead><tr><th>Fecha</th><th>Cliente</th><th>Agente Asignado</th><th>Estado</th><th>Sentimiento</th><th>Acciones</th></tr></thead>
-                                <tbody id="tickets-table-body"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <div id="planes" class="main-section">
-                     <div class="card">
-                        <div class="card-header"><h3>Planes de Internet</h3>
-                            <div>
-                                <button class="action-btn-small" id="add-plan-btn"><i class="fas fa-plus"></i> Añadir Plan</button>
-                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <table class="tickets-table">
-                                <thead><tr><th>Nombre</th><th>Precio</th><th>Velocidad (Bajada/Subida)</th><th>Ideal Para</th><th>Acciones</th></tr></thead>
-                                <tbody id="planes-table-body"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <div id="promociones" class="main-section">
-                     <div class="card">
-                        <div class="card-header"><h3>Promociones Especiales</h3>
-                            <div>
-                                <button class="action-btn-small" id="add-promo-btn"><i class="fas fa-plus"></i> Añadir Promoción</button>
-                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
-                            </div>
-                        </div>
-                        <div class="card-body">
-                            <table class="tickets-table">
-                                <thead><tr><th>Nombre</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr></thead>
-                                <tbody id="promos-table-body"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
                 <div id="faq" class="main-section">
                      <div class="card">
                         <div class="card-header"><h3>Preguntas Frecuentes de Ventas</h3>
@@ -282,7 +331,7 @@
                         </div>
                     </div>
                 </div>
-                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
+
                 <div id="faq-soporte" class="main-section">
                      <div class="card">
                         <div class="card-header"><h3>Preguntas Frecuentes de Soporte</h3>
@@ -296,39 +345,6 @@
                                 <thead><tr><th>Pregunta</th><th>Respuesta</th><th>Acciones</th></tr></thead>
                                 <tbody id="support-faq-table-body"></tbody>
                             </table>
-                        </div>
-                    </div>
-                </div>
-                <!-- --- FIN DE LA MODIFICACIÓN --- -->
-                <div id="ajustes-empresa" class="main-section">
-                    <div class="card">
-                        <div class="card-header"><h3>Ajustes de Empresa</h3>
-                            <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
-                        </div>
-                        <div class="card-body">
-                            <form id="company-config-form" class="modern-form"></form>
-                        </div>
-                    </div>
-                </div>
-                <div id="tools" class="main-section">
-                    <div class="tools-grid">
-                        <div class="card">
-                            <div class="card-header"><h3>Enviar Mensaje Manual</h3></div>
-                            <div class="card-body">
-                                <form id="send-message-form" class="modern-form">
-                                    <input type="text" id="manual-recipient" placeholder="Número de WhatsApp (ej: 1122334455)" required>
-                                    <textarea id="manual-message" rows="3" placeholder="Escribe tu mensaje aquí..." required></textarea>
-                                    <button type="submit" id="send-manual-btn"><i class="fas fa-paper-plane"></i> Enviar Mensaje</button>
-                                    <p id="send-feedback" class="feedback-message"></p>
-                                </form>
-                            </div>
-                        </div>
-                        <div class="card">
-                            <div class="card-header"><h3>Acciones del Bot</h3></div>
-                            <div class="card-body actions-body">
-                                <button id="connect-btn" class="action-btn connect"><i class="fas fa-play-circle"></i> Conectar</button>
-                                <button id="disconnect-btn" class="action-btn disconnect"><i class="fas fa-stop-circle"></i> Desconectar</button>
-                            </div>
                         </div>
                     </div>
                 </div>
