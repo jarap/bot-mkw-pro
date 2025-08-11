@@ -458,7 +458,6 @@ input:checked + .switch-slider:before {
     box-shadow: var(--box-shadow);
 }
 
-/* --- INICIO DE MODIFICACIÓN: Estilos para el Árbol de Menú Jerárquico --- */
 .menu-tree-container {
     padding: 1rem;
     background-color: var(--color-background);
@@ -471,7 +470,6 @@ input:checked + .switch-slider:before {
     position: relative;
 }
 
-/* La línea vertical que conecta los items */
 .menu-tree-level::before {
     content: '';
     position: absolute;
@@ -487,7 +485,6 @@ input:checked + .switch-slider:before {
     margin-bottom: 0.5rem;
 }
 
-/* La línea horizontal que conecta al item con la línea vertical principal */
 .menu-tree-level li::before {
     content: '';
     position: absolute;
@@ -498,15 +495,14 @@ input:checked + .switch-slider:before {
     background-color: var(--color-info-light);
 }
 
-/* Ocultar la línea vertical para el último elemento de la lista para que no se extienda de más */
 .menu-tree-level li:last-child > .menu-item-node::after {
     content: '';
     position: absolute;
-    left: -15px; /* Debe coincidir con el left de li::before */
+    left: -15px;
     top: 19px;
     bottom: 0;
     width: 1px;
-    background-color: var(--color-background); /* Pinta sobre la línea vertical con el color de fondo */
+    background-color: var(--color-background);
 }
 
 .menu-item-node {
@@ -540,5 +536,32 @@ input:checked + .switch-slider:before {
 .menu-item-actions {
     display: flex;
     gap: 0.5rem;
+}
+
+/* --- INICIO DE MODIFICACIÓN: Estilos para los filtros de la tarjeta KPI --- */
+.kpi-filters {
+    margin-top: 0.8rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.kpi-filter-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: var(--color-white);
+    padding: 4px 10px;
+    border-radius: var(--border-radius-1);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 300ms ease;
+}
+
+.kpi-filter-btn:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.kpi-filter-btn.active {
+    background: var(--color-white);
+    color: var(--color-warning); /* Color de la tarjeta */
 }
 /* --- FIN DE MODIFICACIÓN --- */

@@ -34,28 +34,11 @@ export const getSalesData = () => fetchData('/api/salesdata');
 export const getCompanyConfig = () => fetchData('/api/config/empresa');
 export const getVentasConfig = () => fetchData('/api/config/ventas');
 export const getCalendarEvents = () => fetchData('/api/calendar/events');
-
-// --- INICIO DE MODIFICACIONES: Funciones para el Gestor de Menús Jerárquico ---
-
 export const getAllMenuItems = () => fetchData('/api/menu-items');
 
-export const addMenuItem = (itemData) => fetchData('/api/menu-items', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(itemData),
-});
-
-export const updateMenuItem = (itemId, itemData) => fetchData(`/api/menu-items/${itemId}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(itemData),
-});
-
-export const deleteMenuItem = (itemId) => fetchData(`/api/menu-items/${itemId}`, {
-    method: 'DELETE',
-});
-
-// --- FIN DE MODIFICACIONES ---
+// --- INICIO DE MODIFICACIÓN: Nueva función para contar eventos del calendario ---
+export const getCalendarEventsCount = (days) => fetchData(`/api/calendar/events/count?days=${days}`);
+// --- FIN DE MODIFICACIÓN ---
 
 
 // --- Funciones de acción (POST, PUT, DELETE) ---
@@ -100,5 +83,21 @@ export const updateItem = (collection, id, data) => fetchData(`/api/data/${colle
 });
 
 export const deleteItem = (collection, id) => fetchData(`/api/data/${collection}/${id}`, {
+    method: 'DELETE',
+});
+
+export const addMenuItem = (data) => fetchData('/api/menu-items', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+});
+
+export const updateMenuItem = (id, data) => fetchData(`/api/menu-items/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+});
+
+export const deleteMenuItem = (id) => fetchData(`/api/menu-items/${id}`, {
     method: 'DELETE',
 });

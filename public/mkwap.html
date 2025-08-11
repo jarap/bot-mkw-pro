@@ -24,15 +24,13 @@
                     <li><a href="#" data-target="sessions"><i class="fas fa-headset"></i><span>Sesiones Activas</span></a></li>
                     <li><a href="#" data-target="history"><i class="fas fa-history"></i><span>Historial de Tickets</span></a></li>
                 </ul>
-                
                 <h3>Herramientas</h3>
                 <ul>
                     <li><a href="#" data-target="tools"><i class="fas fa-tools"></i><span>Herramientas</span></a></li>
                 </ul>
-
                 <h3>Configuración</h3>
                 <ul>
-                    <li><a href="#" data-target="ajustes"><i class="fas fa-cog"></i><span>Ajustes</span></a></li>
+                    <li><a href="#" data-target="settings"><i class="fas fa-cog"></i><span>Ajustes</span></a></li>
                 </ul>
             </nav>
             <div class="sidebar-footer">
@@ -43,61 +41,75 @@
             </div>
         </aside>
 
-        <div class="main-wrapper">
+        <main class="main-wrapper">
             <header class="main-header">
                 <div class="header-left">
-                    <button class="menu-toggle" id="menu-toggle-btn"><i class="fas fa-bars"></i></button>
+                    <button class="menu-toggle"><i class="fas fa-bars"></i></button>
                     <div class="search-bar">
                         <i class="fas fa-search"></i>
-                        <input type="text" id="search-ticket-input" placeholder="Buscar ticket, cliente...">
+                        <input type="text" placeholder="Buscar ticket, cliente...">
                     </div>
                 </div>
                 <div class="header-right">
-                    <button class="header-icon"><i class="fas fa-bell"></i><span class="notification-dot"></span></button>
-                    <button class="header-icon"><i class="fas fa-envelope"></i></button>
+                    <i class="fas fa-bell header-icon"><span class="notification-dot"></span></i>
                     <div class="user-profile">
-                        <img src="https://i.pravatar.cc/150?u=admin" alt="Admin">
                         <div class="user-info">
-                            <span class="user-name">Admin</span>
-                            <span class="user-role">Super Admin</span>
+                            <p>Hola, <b>Admin</b></p>
+                            <small>Super Admin</small>
                         </div>
+                        <img src="https://via.placeholder.com/100" alt="Avatar">
                     </div>
                 </div>
             </header>
 
-            <main class="main-content">
-                <div id="dashboard" class="main-section active">
+            <div class="main-content">
+                <!-- Dashboard Section -->
+                <section id="dashboard" class="main-section active">
                     <div class="kpi-grid">
                         <div class="card kpi-card bg-blue">
-                            <div class="kpi-icon"><i class="fas fa-power-off"></i></div>
+                            <div class="kpi-icon"><i class="fab fa-whatsapp"></i></div>
                             <div class="kpi-info">
-                                <span class="kpi-title">Estado del Bot</span>
-                                <p id="status-text" class="kpi-value">Desconectado</p>
+                                <h3 class="kpi-title">Estado del Bot</h3>
+                                <h1 class="kpi-value" id="status-text">CARGANDO...</h1>
                             </div>
                         </div>
                         <div class="card kpi-card bg-green clickable-kpi" data-target-tab="history" data-filter="open">
                             <div class="kpi-icon"><i class="fas fa-ticket-alt"></i></div>
                             <div class="kpi-info">
-                                <span class="kpi-title">Tickets Abiertos</span>
-                                <p id="open-tickets-value" class="kpi-value">0</p>
+                                <h3 class="kpi-title">Tickets Abiertos</h3>
+                                <h1 class="kpi-value" id="open-tickets-value">0</h1>
                             </div>
                         </div>
                         <div class="card kpi-card bg-orange">
-                            <div class="kpi-icon"><i class="fas fa-users"></i></div>
+                            <div class="kpi-icon"><i class="fas fa-calendar-check"></i></div>
                             <div class="kpi-info">
-                                <span class="kpi-title">Clientes Atendidos</span>
-                                <p id="unique-clients-value" class="kpi-value">0</p>
+                                <h3 class="kpi-title">Visitas Agendadas</h3>
+                                <h1 class="kpi-value" id="scheduled-visits-value">-</h1>
+                                <div class="kpi-filters" id="visits-filter-buttons">
+                                    <button class="kpi-filter-btn" data-days="1">Hoy</button>
+                                    <button class="kpi-filter-btn active" data-days="15">15 Días</button>
+                                    <button class="kpi-filter-btn" data-days="30">30 Días</button>
+                                </div>
                             </div>
                         </div>
                         <div class="card kpi-card bg-red">
                             <div class="kpi-icon"><i class="fas fa-exclamation-triangle"></i></div>
                             <div class="kpi-info">
-                                <span class="kpi-title">Alertas del Sistema</span>
-                                <p class="kpi-value">2</p>
+                                <h3 class="kpi-title">Alertas del Sistema</h3>
+                                <h1 class="kpi-value">2</h1>
                             </div>
                         </div>
                     </div>
-                    <div class="charts-grid">
+
+                    <div id="qr-card" class="card" style="display: none;">
+                        <div class="card-header"><h3>Escanea para Conectar</h3></div>
+                        <div class="card-body">
+                            <p>Abre WhatsApp en tu teléfono y escanea el código QR para vincular el bot.</p>
+                            <img id="qr-image" src="" alt="Código QR de WhatsApp">
+                        </div>
+                    </div>
+
+                    <div class="main-chart-grid">
                         <div class="card">
                             <div class="card-header"><h3>Tickets por Estado</h3></div>
                             <div class="card-body chart-container">
@@ -111,287 +123,292 @@
                             </div>
                         </div>
                     </div>
-                    <div class="main-chart-grid">
-                        <div class="card">
-                            <div class="card-header"><h3>Consola en Vivo</h3></div>
-                            <div class="card-body"><iframe id="log-iframe" src="console.html" class="log-viewer-iframe"></iframe></div>
-                        </div>
-                        <div class="card" id="qr-card" style="display: none;">
-                            <div class="card-header"><h3>Código QR de Conexión</h3></div>
-                            <div class="card-body qr-body">
-                                <div id="qr-container">
-                                    <p>Escanea para conectar el bot.</p>
-                                    <img id="qr-image" src="" alt="Código QR">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="calendar" class="main-section">
                     <div class="card">
-                        <div class="card-header">
-                            <h3>Calendario de Visitas Técnicas</h3>
-                        </div>
-                        <div class="card-body" id="calendar-container">
+                        <div class="card-header"><h3>Consola en Vivo</h3></div>
+                        <div class="card-body">
+                            <iframe id="log-iframe" src="console.html" class="log-viewer-iframe"></iframe>
                         </div>
                     </div>
-                </div>
-                
-                <div id="sessions" class="main-section">
+                </section>
+
+                <!-- Calendar Section -->
+                <section id="calendar" class="main-section">
+                    <div class="card">
+                        <div class="card-header"><h3>Calendario de Visitas Técnicas</h3></div>
+                        <div class="card-body" id="calendar-container"></div>
+                    </div>
+                </section>
+
+                <!-- Active Sessions Section -->
+                <section id="sessions" class="main-section">
                     <div class="card">
                         <div class="card-header"><h3>Sesiones de Soporte Activas</h3></div>
-                        <div class="card-body">
+                        <div class="card-body" style="overflow-x: auto;">
                             <table class="tickets-table">
-                                <thead><tr><th>Cliente</th><th>Agente Asignado</th><th>Estado</th><th>Tiempo Activo</th><th>Última Actividad</th></tr></thead>
-                                <tbody id="sessions-table-body"></tbody>
+                                <thead>
+                                    <tr>
+                                        <th>Cliente</th>
+                                        <th>Agente Asignado</th>
+                                        <th>Estado</th>
+                                        <th>Tiempo Activo</th>
+                                        <th>Última Actividad</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sessions-table-body">
+                                    <!-- Filas se insertan dinámicamente -->
+                                </tbody>
                             </table>
                         </div>
                     </div>
-                </div>
-                <div id="history" class="main-section">
+                </section>
+
+                <!-- Ticket History Section -->
+                <section id="history" class="main-section">
                     <div class="card">
                         <div class="card-header">
-                            <h3>Historial de Tickets Recientes</h3>
+                            <h3>Historial de Tickets</h3>
                             <div class="filter-controls" id="ticket-filter-buttons">
                                 <button class="filter-btn active" data-status="all">Todos</button>
-                                <button class="filter-btn" data-status="Pendiente">Pendiente</button>
+                                <button class="filter-btn" data-status="Pendiente">Pendientes</button>
                                 <button class="filter-btn" data-status="En Progreso">En Progreso</button>
-                                <button class="filter-btn" data-status="Cerrado">Cerrado</button>
+                                <button class="filter-btn" data-status="Cerrado">Cerrados</button>
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" style="overflow-x: auto;">
                             <table class="tickets-table">
-                                <thead><tr><th>Fecha</th><th>Cliente</th><th>Agente Asignado</th><th>Estado</th><th>Sentimiento</th><th>Acciones</th></tr></thead>
+                                <thead>
+                                    <tr>
+                                        <th>Fecha y Hora</th>
+                                        <th>Cliente</th>
+                                        <th>Agente</th>
+                                        <th>Estado</th>
+                                        <th>Sentimiento</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
                                 <tbody id="tickets-table-body"></tbody>
                             </table>
                         </div>
                     </div>
-                </div>
-                
-                <div id="tools" class="main-section">
+                </section>
+
+                <!-- Tools Section -->
+                <section id="tools" class="main-section">
                     <div class="tools-grid">
+                        <div class="card">
+                            <div class="card-header"><h3>Acciones del Bot</h3></div>
+                            <div class="card-body actions-body">
+                                <button id="connect-btn" class="action-btn connect">Conectar Bot</button>
+                                <button id="disconnect-btn" class="action-btn disconnect">Desconectar Bot</button>
+                            </div>
+                        </div>
                         <div class="card">
                             <div class="card-header"><h3>Enviar Mensaje Manual</h3></div>
                             <div class="card-body">
                                 <form id="send-message-form" class="modern-form">
-                                    <input type="text" id="manual-recipient" placeholder="Número de WhatsApp (ej: 1122334455)" required>
-                                    <textarea id="manual-message" rows="3" placeholder="Escribe tu mensaje aquí..." required></textarea>
-                                    <button type="submit" id="send-manual-btn"><i class="fas fa-paper-plane"></i> Enviar Mensaje</button>
-                                    <p id="send-feedback" class="feedback-message"></p>
+                                    <label for="manual-recipient">Número de Destinatario (sin 549)</label>
+                                    <input type="text" id="manual-recipient" placeholder="Ej: 2604123456">
+                                    <label for="manual-message">Mensaje</label>
+                                    <textarea id="manual-message" rows="4" placeholder="Escribe tu mensaje aquí..."></textarea>
+                                    <button type="submit" id="send-manual-btn">Enviar Mensaje</button>
                                 </form>
                             </div>
                         </div>
-                        <div class="card">
-                            <div class="card-header"><h3>Acciones del Bot</h3></div>
-                            <div class="card-body actions-body">
-                                <button id="connect-btn" class="action-btn connect"><i class="fas fa-play-circle"></i> Conectar</button>
-                                <button id="disconnect-btn" class="action-btn disconnect"><i class="fas fa-stop-circle"></i> Desconectar</button>
-                            </div>
-                        </div>
                     </div>
-                </div>
+                </section>
 
-                <div id="ajustes" class="main-section">
+                <!-- --- INICIO DE MODIFICACIÓN: Restauración de la estructura de Ajustes --- -->
+                <!-- Settings Section (Pantalla Principal de Ajustes) -->
+                <section id="settings" class="main-section">
                     <div class="card">
-                        <div class="card-header">
-                            <h3>Ajustes del Bot</h3>
-                        </div>
+                        <div class="card-header"><h3>Ajustes del Bot</h3></div>
                         <div class="card-body">
                             <div class="settings-grid">
-                                <a href="#" class="settings-card" data-target="ajustes-empresa">
+                                <div class="settings-card" data-target="ajustes-empresa">
                                     <div class="settings-icon"><i class="fas fa-building"></i></div>
-                                    <span>Ajustes de Empresa</span>
-                                </a>
-                                <a href="#" class="settings-card" data-target="ajustes-bot-venta">
+                                    <span>Datos Empresa</span>
+                                </div>
+                                <div class="settings-card" data-target="ajustes-bot-venta">
                                     <div class="settings-icon"><i class="fas fa-robot"></i></div>
-                                    <span>Ajustes Bot de Venta</span>
-                                </a>
-                                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
-                                <a href="#" class="settings-card" data-target="ajustes-bot-soporte">
+                                    <span>Ajustes Bot Venta</span>
+                                </div>
+                                <div class="settings-card" data-target="ajustes-bot-soporte">
                                     <div class="settings-icon"><i class="fas fa-sitemap"></i></div>
-                                    <span>Ajustes Bot Soporte</span>
-                                </a>
-                                <!-- --- FIN DE LA MODIFICACIÓN --- -->
-                                <a href="#" class="settings-card" data-target="planes">
+                                    <span>Editor de Menús</span>
+                                </div>
+                                <div class="settings-card" data-target="ajustes-planes">
                                     <div class="settings-icon"><i class="fas fa-wifi"></i></div>
                                     <span>Planes de Internet</span>
-                                </a>
-                                <a href="#" class="settings-card" data-target="promociones">
+                                </div>
+                                <div class="settings-card" data-target="ajustes-promociones">
                                     <div class="settings-icon"><i class="fas fa-tags"></i></div>
                                     <span>Promociones</span>
-                                </a>
-                                <a href="#" class="settings-card" data-target="zonas-cobertura">
+                                </div>
+                                <div class="settings-card" data-target="ajustes-zonas">
                                     <div class="settings-icon"><i class="fas fa-map-marked-alt"></i></div>
                                     <span>Zonas de Cobertura</span>
-                                </a>
-                                <a href="#" class="settings-card" data-target="faq">
+                                </div>
+                                <div class="settings-card" data-target="ajustes-faq-ventas">
                                     <div class="settings-icon"><i class="fas fa-question-circle"></i></div>
                                     <span>FAQs de Ventas</span>
-                                </a>
-                                <a href="#" class="settings-card" data-target="faq-soporte">
+                                </div>
+                                <div class="settings-card" data-target="ajustes-faq-soporte">
                                     <div class="settings-icon"><i class="fas fa-headset"></i></div>
                                     <span>FAQs de Soporte</span>
-                                </a>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-
-                <!-- --- INICIO DE LA MODIFICACIÓN --- -->
-                <!-- Nueva sección para el Gestor de Menús del Bot de Soporte -->
-                <div id="ajustes-bot-soporte" class="main-section">
+                </section>
+                
+                <!-- Sub-secciones de Ajustes (Cada una es una página individual) -->
+                <section id="ajustes-empresa" class="main-section">
                     <div class="card">
                         <div class="card-header">
-                            <h3>Ajustes Bot Soporte</h3>
-                            <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
-                        </div>
-                        <div class="card-body">
-                            <!-- El contenido de esta sección será generado por JavaScript -->
-                            <p>Cargando gestor de menús...</p>
-                        </div>
-                    </div>
-                </div>
-                <!-- --- FIN DE LA MODIFICACIÓN --- -->
-
-                <div id="ajustes-empresa" class="main-section">
-                    <div class="card">
-                        <div class="card-header"><h3>Ajustes de Empresa</h3>
-                            <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            <h3>Configuración de la Empresa</h3>
+                            <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
                         </div>
                         <div class="card-body">
                             <form id="company-config-form" class="modern-form"></form>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div id="ajustes-bot-venta" class="main-section">
+                <section id="ajustes-bot-venta" class="main-section">
                     <div class="card">
                         <div class="card-header">
-                            <h3>Ajustes del Bot de Venta</h3>
-                            <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            <h3>Ajustes del Bot de Ventas</h3>
+                            <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
                         </div>
                         <div class="card-body">
                             <form id="ventas-config-form" class="modern-form"></form>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div id="planes" class="main-section">
-                     <div class="card">
-                        <div class="card-header"><h3>Planes de Internet</h3>
-                            <div>
-                                <button class="action-btn-small" id="add-plan-btn"><i class="fas fa-plus"></i> Añadir Plan</button>
-                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
-                            </div>
+                <section id="ajustes-bot-soporte" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Editor de Menús Jerárquico</h3>
+                            <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
                         </div>
                         <div class="card-body">
+                           <!-- El contenido se renderiza dinámicamente aquí -->
+                        </div>
+                    </div>
+                </section>
+
+                <section id="ajustes-planes" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Planes de Internet</h4>
+                            <div>
+                                <button id="add-plan-btn" class="action-btn-small"><i class="fas fa-plus"></i> Añadir Plan</button>
+                                <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
+                            </div>
+                        </div>
+                        <div class="card-body" style="overflow-x: auto;">
                             <table class="tickets-table">
-                                <thead><tr><th>Nombre</th><th>Precio</th><th>Velocidad (Bajada/Subida)</th><th>Ideal Para</th><th>Acciones</th></tr></thead>
+                                <thead><tr><th>Nombre</th><th>Precio</th><th>Velocidad</th><th>Ideal Para</th><th>Acciones</th></tr></thead>
                                 <tbody id="planes-table-body"></tbody>
                             </table>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div id="promociones" class="main-section">
-                     <div class="card">
-                        <div class="card-header"><h3>Promociones Especiales</h3>
+                <section id="ajustes-promociones" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Promociones</h4>
                             <div>
-                                <button class="action-btn-small" id="add-promo-btn"><i class="fas fa-plus"></i> Añadir Promoción</button>
-                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                                <button id="add-promo-btn" class="action-btn-small"><i class="fas fa-plus"></i> Añadir Promo</button>
+                                <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" style="overflow-x: auto;">
                             <table class="tickets-table">
                                 <thead><tr><th>Nombre</th><th>Descripción</th><th>Estado</th><th>Acciones</th></tr></thead>
                                 <tbody id="promos-table-body"></tbody>
                             </table>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div id="zonas-cobertura" class="main-section">
+                <section id="ajustes-zonas" class="main-section">
                     <div class="card">
                         <div class="card-header">
-                            <h3>Gestionar Zonas de Cobertura</h3>
+                            <h4>Zonas de Cobertura</h4>
                             <div>
-                                <button class="action-btn-small" id="add-zona-btn"><i class="fas fa-plus"></i> Añadir Zona</button>
-                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                                <button id="add-zona-btn" class="action-btn-small"><i class="fas fa-plus"></i> Añadir Zona</button>
+                                <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" style="overflow-x: auto;">
                             <table class="tickets-table">
-                                <thead>
-                                    <tr>
-                                        <th>Nombre de la Zona</th>
-                                        <th style="width: 120px;">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="zonas-table-body">
-                                </tbody>
+                                <thead><tr><th>Nombre de la Zona</th><th>Acciones</th></tr></thead>
+                                <tbody id="zonas-table-body"></tbody>
                             </table>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div id="faq" class="main-section">
-                     <div class="card">
-                        <div class="card-header"><h3>Preguntas Frecuentes de Ventas</h3>
+                <section id="ajustes-faq-ventas" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Preguntas Frecuentes (Ventas)</h4>
                             <div>
-                                <button class="action-btn-small" id="add-faq-btn"><i class="fas fa-plus"></i> Añadir Pregunta</button>
-                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                                <button id="add-faq-btn" class="action-btn-small"><i class="fas fa-plus"></i> Añadir FAQ</button>
+                                <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" style="overflow-x: auto;">
                             <table class="tickets-table">
                                 <thead><tr><th>Pregunta</th><th>Respuesta</th><th>Acciones</th></tr></thead>
                                 <tbody id="faq-table-body"></tbody>
                             </table>
                         </div>
                     </div>
-                </div>
+                </section>
 
-                <div id="faq-soporte" class="main-section">
-                     <div class="card">
-                        <div class="card-header"><h3>Preguntas Frecuentes de Soporte</h3>
+                <section id="ajustes-faq-soporte" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h4>Preguntas Frecuentes (Soporte)</h4>
                             <div>
-                                <button class="action-btn-small" id="add-support-faq-btn"><i class="fas fa-plus"></i> Añadir Pregunta</button>
-                                <button class="action-btn-small back-to-settings-btn" data-target="ajustes"><i class="fas fa-arrow-left"></i> Regresar</button>
+                                <button id="add-support-faq-btn" class="action-btn-small"><i class="fas fa-plus"></i> Añadir FAQ de Soporte</button>
+                                <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
                             </div>
                         </div>
-                        <div class="card-body">
+                        <div class="card-body" style="overflow-x: auto;">
                             <table class="tickets-table">
                                 <thead><tr><th>Pregunta</th><th>Respuesta</th><th>Acciones</th></tr></thead>
                                 <tbody id="support-faq-table-body"></tbody>
                             </table>
                         </div>
                     </div>
-                </div>
-            </main>
-        </div>
+                </section>
+                <!-- --- FIN DE MODIFICACIÓN --- -->
 
-        <button class="fab"><i class="fas fa-question"></i></button>
+            </div>
+        </main>
     </div>
 
+    <!-- Modales -->
     <div id="ticket-modal-overlay" class="modal-overlay">
         <div class="modal">
             <div class="modal-header">
-                <h3>Detalles del Ticket</h3>
+                <h3>Detalles del Ticket #<span id="modal-ticket-id"></span></h3>
                 <button id="close-modal-btn" class="close-modal-btn">&times;</button>
             </div>
             <div class="modal-body">
-                <div class="ticket-detail"><strong>ID del Ticket:</strong> <span id="modal-ticket-id"></span></div>
-                <div class="ticket-detail"><strong>Fecha:</strong> <span id="modal-ticket-date"></span></div>
-                <div class="ticket-detail"><strong>Cliente:</strong> <span id="modal-ticket-client"></span></div>
-                <div class="ticket-detail"><strong>Número:</strong> <span id="modal-ticket-number"></span></div>
-                <div class="ticket-detail"><strong>Agente:</strong> <span id="modal-ticket-agent"></span></div>
-                <div class="ticket-detail"><strong>Estado:</strong> <span id="modal-ticket-status"></span></div>
-                <div class="ticket-detail"><strong>Sentimiento:</strong> <span id="modal-ticket-sentiment"></span></div>
+                <p class="ticket-detail"><strong>Fecha:</strong> <span id="modal-ticket-date"></span></p>
+                <p class="ticket-detail"><strong>Cliente:</strong> <span id="modal-ticket-client"></span> (<span id="modal-ticket-number"></span>)</p>
+                <p class="ticket-detail"><strong>Agente:</strong> <span id="modal-ticket-agent"></span></p>
+                <p class="ticket-detail"><strong>Estado:</strong> <span id="modal-ticket-status"></span></p>
+                <p class="ticket-detail"><strong>Sentimiento:</strong> <span id="modal-ticket-sentiment"></span></p>
                 <hr>
-                <div class="ticket-detail"><strong>Mensaje Inicial:</strong>
-                    <p id="modal-ticket-message"></p>
-                </div>
+                <p class="ticket-detail"><strong>Mensaje Inicial:</strong></p>
+                <p id="modal-ticket-message"></p>
             </div>
             <div class="modal-footer">
                 <button id="modal-close-ticket-btn" class="action-btn disconnect">Cerrar Ticket</button>

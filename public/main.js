@@ -40,7 +40,9 @@ document.addEventListener('DOMContentLoaded', () => {
         connectBtn: document.getElementById('connect-btn'),
         disconnectBtn: document.getElementById('disconnect-btn'),
         calendarContainer: document.getElementById('calendar-container'),
-        menuEditorContainer: document.getElementById('ajustes-bot-soporte')?.querySelector('.card-body')
+        menuEditorContainer: document.getElementById('ajustes-bot-soporte')?.querySelector('.card-body'),
+        scheduledVisitsValue: document.getElementById('scheduled-visits-value'),
+        visitsFilterButtons: document.getElementById('visits-filter-buttons'),
     };
 
     async function loadInitialData() {
@@ -181,21 +183,37 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function updateScheduledVisits(days = 15) {
+        if (!dom.scheduledVisitsValue) return;
+        
+        dom.scheduledVisitsValue.textContent = '...'; 
+
+        try {
+            const result = await api.getCalendarEventsCount(days);
+            dom.scheduledVisitsValue.textContent = result.count;
+        } catch (error) {
+            console.error(`Fallo al obtener el conteo de eventos para ${days} días:`, error);
+            dom.scheduledVisitsValue.textContent = '-';
+        }
+    }
+
     function initializeEventListeners() {
         ui.initializeUISidebar();
         
+        // --- INICIO DE MODIFICACIÓN: Callbacks de navegación actualizados ---
         const navigationCallbacks = {
             'history': renderCurrentTickets,
             'calendar': loadAndRenderCalendar,
-            'planes': forceReloadSalesData,
-            'promociones': forceReloadSalesData,
-            'faq': forceReloadSalesData,
-            'zonas-cobertura': forceReloadSalesData,
-            'faq-soporte': forceReloadSalesData,
             'ajustes-empresa': loadAndRenderCompanyConfig,
             'ajustes-bot-venta': loadAndRenderVentasConfig,
-            'ajustes-bot-soporte': loadAndRenderMenuEditor
+            'ajustes-bot-soporte': loadAndRenderMenuEditor,
+            'ajustes-planes': forceReloadSalesData,
+            'ajustes-promociones': forceReloadSalesData,
+            'ajustes-zonas': forceReloadSalesData,
+            'ajustes-faq-ventas': forceReloadSalesData,
+            'ajustes-faq-soporte': forceReloadSalesData,
         };
+        // --- FIN DE MODIFICACIÓN ---
         ui.initializeUINavigation(navigationCallbacks);
 
         modals.initializeModals();
@@ -247,9 +265,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // --- INICIO DE MODIFICACIÓN: Lógica de guardado mejorada ---
             const openModalAndSave = async (itemData = {}, parentId, itemId = null) => {
-                // La función onSave ahora devuelve un booleano: true para éxito, false para error.
                 modals.openMenuItemModal(itemData, parentId, async (formData) => {
                     try {
                         if (itemId) {
@@ -258,14 +274,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             await api.addMenuItem(formData);
                         }
                         await loadAndRenderMenuEditor();
-                        return true; // Éxito
+                        return true;
                     } catch (error) {
                         modals.showCustomAlert('Error de Validación', error.message);
-                        return false; // Error
+                        return false;
                     }
                 });
             };
-            // --- FIN DE MODIFICACIÓN ---
 
             const addRootBtn = e.target.closest('#add-root-item-btn');
             if (addRootBtn) {
@@ -403,8 +418,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         dom.addSupportFaqBtn?.addEventListener('click', () => modals.openSalesModal('soporteFAQ', {}, state.salesData));
+
+        dom.visitsFilterButtons?.addEventListener('click', (e) => {
+            if (e.target.classList.contains('kpi-filter-btn')) {
+                const days = e.target.dataset.days;
+                
+                dom.visitsFilterButtons.querySelectorAll('.kpi-filter-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                e.target.classList.add('active');
+                
+                updateScheduledVisits(days);
+            }
+        });
     }
 
     initializeWebSocket();
     initializeEventListeners();
+
+    updateScheduledVisits(15);
 });
