@@ -170,13 +170,23 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
+    // --- INICIO DE LA MODIFICACIÓN ---
     async handleRegisteredClient(chatId, userMessage, currentState) {
         const isNumericOption = /^\d+$/.test(userMessage);
         const currentOptions = currentState.currentOptions || [];
-
+    
         if (isNumericOption) {
-            const selectedOption = currentOptions.find(opt => opt.order === parseInt(userMessage, 10));
-
+            const selectedNumber = parseInt(userMessage, 10);
+    
+            // Comprobación especial para la opción "Volver"
+            if (selectedNumber === 0 && currentState.currentParentId !== 'root') {
+                console.log(chalk.green(`   -> Usuario seleccionó la opción: "Volver al Menú Principal"`));
+                await this.sendMenu(chatId, 'root', currentState);
+                return; // Detenemos la ejecución para no procesar más
+            }
+    
+            const selectedOption = currentOptions.find(opt => opt.order === selectedNumber);
+    
             if (selectedOption) {
                 console.log(chalk.green(`   -> Usuario seleccionó la opción: "${selectedOption.title}"`));
                 await this.executeMenuAction(chatId, selectedOption, currentState);
@@ -185,6 +195,7 @@ class WhatsAppClient extends EventEmitter {
                 await this.sendMenu(chatId, currentState.currentParentId, currentState);
             }
         } else {
+            // La lógica para manejar texto libre (IA, etc.) no cambia
             const chatHistory = currentState.chatHistory || [];
             chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
             const faqResponse = await iaHandler.answerSupportQuestion(chatHistory);
@@ -201,54 +212,49 @@ class WhatsAppClient extends EventEmitter {
             }
         }
     }
-
+    
     async sendMenu(chatId, parentId, currentState) {
-        const menuItems = await firestoreHandler.getMenuItems(parentId);
-        
-        // --- INICIO DE LA CORRECCIÓN ---
-        // Lógica simplificada y corregida para obtener el encabezado del menú.
-        let menuHeader;
+        let menuMessage = '';
+        let options = [];
+    
         if (parentId === 'root') {
-            // Si es el menú raíz, el encabezado es el primer item que encontramos.
-            menuHeader = menuItems.find(item => item.parent === 'root');
+            menuMessage = '*Menú Principal*\n\n';
+            options = await firestoreHandler.getMenuItems('root');
         } else {
-            // Si es un submenú, el encabezado es el propio documento padre.
-            menuHeader = await firestoreHandler.getMenuItemById(parentId);
+            const menuHeader = await firestoreHandler.getMenuItemById(parentId);
+            if (!menuHeader) {
+                console.error(chalk.red(`No se pudo encontrar el encabezado del menú para el padre '${parentId}'.`));
+                await this.client.sendMessage(chatId, "Lo siento, tuvimos un problema para mostrar las opciones.");
+                return;
+            }
+            
+            menuMessage = `*${menuHeader.title}*\n\n`;
+            if (menuHeader.description) {
+                menuMessage += `${menuHeader.description}\n\n`;
+            }
+            options = await firestoreHandler.getMenuItems(parentId);
         }
-
-        if (!menuHeader) {
-            console.error(chalk.red(`No se pudo encontrar el encabezado del menú para el padre '${parentId}'.`));
-            await this.client.sendMessage(chatId, "Lo siento, tuvimos un problema para mostrar las opciones. Por favor, intenta de nuevo más tarde.");
-            return;
-        }
-        
-        // Las opciones a mostrar son los hijos del encabezado.
-        const options = await firestoreHandler.getMenuItems(menuHeader.id);
-        // --- FIN DE LA CORRECCIÓN ---
-
-        if (!options || options.length === 0) {
-            console.error(chalk.red(`No se encontraron items de menú para el padre '${parentId}'.`));
-            await this.client.sendMessage(chatId, "Lo siento, no hay más opciones disponibles aquí.");
-            return;
-        }
-
-        let menuMessage = `*${menuHeader.title}*\n\n`;
-        if (menuHeader.description) {
-            menuMessage += `${menuHeader.description}\n\n`;
-        }
-
+    
+        // Construimos el mensaje con las opciones de la base de datos
         options.forEach((option) => {
             menuMessage += `*${option.order}* - ${option.title}\n`;
         });
+    
+        // Si no estamos en el menú principal, añadimos la opción de volver
+        if (parentId !== 'root') {
+            menuMessage += `*0* - Volver al Menú Principal\n`;
+        }
+    
         menuMessage += `\nEliga el número de la opción deseada o escriba su consulta.`;
-
+    
         await this.client.sendMessage(chatId, menuMessage);
-
+    
         currentState.currentParentId = parentId;
-        currentState.currentOptions = options;
+        currentState.currentOptions = options; // Guardamos solo las opciones reales, no la de "volver"
         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
         console.log(chalk.magenta(`   -> Menú para padre '${parentId}' enviado y estado actualizado.`));
     }
+    // --- FIN DE LA MODIFICACIÓN ---
 
     async executeMenuAction(chatId, selectedOption, currentState) {
         switch (selectedOption.actionType) {
