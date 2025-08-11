@@ -182,7 +182,7 @@ export function openMenuItemModal(itemData, parentId, onSave) {
     const newForm = form.cloneNode(true);
     form.parentNode.replaceChild(newForm, form);
 
-    newForm.onsubmit = (e) => {
+    newForm.onsubmit = async (e) => {
         e.preventDefault();
         const formData = new FormData(newForm);
         const savedData = {
@@ -193,19 +193,22 @@ export function openMenuItemModal(itemData, parentId, onSave) {
             description: formData.get('description'),
         };
         
-        onSave(savedData);
-        closeSalesModal();
+        const wasSuccessful = await onSave(savedData);
+        
+        if (wasSuccessful) {
+            closeSalesModal();
+        }
     };
 
     overlay.classList.add('show');
 }
 
-// --- INICIO DE MODIFICACIÓN: Se simplifica la inicialización ---
-// La lógica de escuchar clics en las tablas se ha movido a main.js
+// --- INICIO DE MODIFICACIÓN: Se eliminan los listeners de clic en el overlay ---
 export function initializeModals() {
+    // Listener para el botón 'X' del modal de tickets
     document.getElementById('close-modal-btn')?.addEventListener('click', hideTicketModal);
-    document.getElementById('ticket-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'ticket-modal-overlay') hideTicketModal(); });
     
+    // Listener para el botón 'Cerrar Ticket' dentro del modal
     document.getElementById('modal-close-ticket-btn')?.addEventListener('click', (e) => {
         const ticketId = e.target.dataset.ticketId;
         showConfirmationModal('Confirmar Cierre', `¿Estás seguro de que quieres cerrar el ticket ${ticketId}?`, async () => {
@@ -219,10 +222,14 @@ export function initializeModals() {
         });
     });
 
+    // Listener para el botón 'X' del modal de ventas/edición
     document.getElementById('close-sales-modal-btn')?.addEventListener('click', closeSalesModal);
-    document.getElementById('sales-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'sales-modal-overlay') closeSalesModal(); });
     
-    // Los listeners para los botones de añadir se mantienen aquí
+    // Las siguientes líneas que cerraban el modal al hacer clic en el fondo han sido eliminadas:
+    // document.getElementById('ticket-modal-overlay')?.addEventListener('click', ...);
+    // document.getElementById('sales-modal-overlay')?.addEventListener('click', ...);
+    
+    // Listeners para los botones de 'Añadir'
     document.getElementById('add-plan-btn')?.addEventListener('click', () => openSalesModal('planes'));
     document.getElementById('add-promo-btn')?.addEventListener('click', () => openSalesModal('promociones'));
     document.getElementById('add-faq-btn')?.addEventListener('click', () => openSalesModal('preguntasFrecuentes'));

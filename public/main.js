@@ -247,8 +247,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // --- INICIO DE MODIFICACIÓN: Manejo de errores de validación ---
+            // --- INICIO DE MODIFICACIÓN: Lógica de guardado mejorada ---
             const openModalAndSave = async (itemData = {}, parentId, itemId = null) => {
+                // La función onSave ahora devuelve un booleano: true para éxito, false para error.
                 modals.openMenuItemModal(itemData, parentId, async (formData) => {
                     try {
                         if (itemId) {
@@ -257,9 +258,10 @@ document.addEventListener('DOMContentLoaded', () => {
                             await api.addMenuItem(formData);
                         }
                         await loadAndRenderMenuEditor();
+                        return true; // Éxito
                     } catch (error) {
-                        // Capturamos el error del backend y se lo mostramos al usuario.
                         modals.showCustomAlert('Error de Validación', error.message);
+                        return false; // Error
                     }
                 });
             };
