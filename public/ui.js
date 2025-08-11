@@ -37,137 +37,125 @@ export function updateStatusUI(status) {
     
     statusCard.className = 'card kpi-card';
     switch(status) {
-        case 'CONECTADO': statusCard.classList.add('bg-green'); break;
-        case 'DESCONECTADO': case 'ERROR': case 'ERROR DE AUTENTICACIÓN':
+        case 'CONECTADO':
+            statusCard.classList.add('bg-blue');
+            if (connectBtn) connectBtn.disabled = true;
+            if (disconnectBtn) disconnectBtn.disabled = false;
+            if (sendManualBtn) sendManualBtn.disabled = false;
+            break;
+        case 'DESCONECTADO':
+        case 'ERROR':
+        case 'ERROR DE AUTENTICACIÓN':
             statusCard.classList.add('bg-red');
+            if (connectBtn) connectBtn.disabled = false;
+            if (disconnectBtn) disconnectBtn.disabled = true;
+            if (sendManualBtn) sendManualBtn.disabled = true;
             break;
-        case 'INICIALIZANDO': case 'ESPERANDO QR': case 'DESCONECTANDO': case 'SERVIDOR_REINICIANDO':
+        default:
             statusCard.classList.add('bg-orange');
+            if (connectBtn) connectBtn.disabled = true;
+            if (disconnectBtn) disconnectBtn.disabled = true;
+            if (sendManualBtn) sendManualBtn.disabled = true;
             break;
-        default: statusCard.classList.add('bg-blue'); break;
     }
-
-    const isConnected = status === 'CONECTADO';
-    if(connectBtn) connectBtn.disabled = isConnected || status === 'INICIALIZANDO';
-    if(disconnectBtn) disconnectBtn.disabled = !isConnected;
-    if(sendManualBtn) sendManualBtn.disabled = !isConnected;
 }
 
-export function showFeedback(message, type) {
-    const feedbackEl = document.getElementById('send-feedback');
-    if (!feedbackEl) return;
-    feedbackEl.textContent = message;
-    feedbackEl.className = `feedback-message feedback-${type}`;
-    setTimeout(() => {
-        feedbackEl.className = 'feedback-message';
-        feedbackEl.textContent = '';
-    }, 5000);
-}
-
-function applyFilters() {
-    const searchTicketInput = document.getElementById('search-ticket-input');
-    const ticketsTableBody = document.getElementById('tickets-table-body');
-    if(!searchTicketInput || !ticketsTableBody) return;
-
-    const searchTerm = searchTicketInput.value.toLowerCase();
-    let filteredTickets = allTickets;
-
-    if (currentFilterStatus !== 'all') {
-        if (currentFilterStatus === 'open') {
-            filteredTickets = filteredTickets.filter(ticket => (ticket.Estado || '').toLowerCase() !== 'cerrado');
-        } else {
-            filteredTickets = filteredTickets.filter(ticket => (ticket.Estado || '').toLowerCase() === currentFilterStatus.toLowerCase());
-        }
+function navigateToTab(targetId) {
+    document.querySelectorAll('.main-section').forEach(section => {
+        section.classList.remove('active');
+    });
+    const targetSection = document.getElementById(targetId);
+    if (targetSection) {
+        targetSection.classList.add('active');
     }
-
-    if (searchTerm) {
-        filteredTickets = filteredTickets.filter(ticket => {
-            const clientName = (ticket['Nombre_Cliente'] || '').toLowerCase();
-            const agentName = (ticket['Agente_Asignado'] || '').toLowerCase();
-            const ticketId = (ticket['ID_Ticket'] || '').toLowerCase();
-            return clientName.includes(searchTerm) || agentName.includes(searchTerm) || ticketId.includes(searchTerm);
-        });
-    }
-
-    render.renderTickets(ticketsTableBody, filteredTickets);
 }
 
 export function initializeUISidebar() {
-    const menuToggleBtn = document.getElementById('menu-toggle-btn');
+    const menuToggle = document.querySelector('.menu-toggle');
     const sidebar = document.querySelector('.sidebar');
-    menuToggleBtn?.addEventListener('click', () => sidebar.classList.toggle('show'));
+    menuToggle?.addEventListener('click', () => {
+        sidebar?.classList.toggle('show');
+    });
 }
 
-// --- INICIO DE LA MODIFICACIÓN ---
-// Se añade 'loadAndRenderCalendar' como un nuevo parámetro (callback).
 export function initializeUINavigation(callbacks) {
-// --- FIN DE LA MODIFICACIÓN ---
     const navLinks = document.querySelectorAll('.sidebar-nav a');
-    const mainSections = document.querySelectorAll('.main-section');
-    const settingsGrid = document.querySelector('.settings-grid');
+    const settingsCards = document.querySelectorAll('.settings-card');
+    const backToSettingsButtons = document.querySelectorAll('.back-to-settings');
     const clickableKpis = document.querySelectorAll('.clickable-kpi');
-    const backToSettingsButtons = document.querySelectorAll('.back-to-settings-btn');
 
-    function navigateToTab(targetId) {
-        navLinks.forEach(navLink => navLink.parentElement.classList.remove('active'));
-        
-        const linkToActivate = document.querySelector(`.sidebar-nav a[data-target="${targetId}"]`);
-        if (linkToActivate) {
-             linkToActivate.parentElement.classList.add('active');
-        } else {
-            const parentTab = ['planes', 'promociones', 'faq', 'ajustes-empresa', 'zonas-cobertura', 'ajustes-bot-venta', 'faq-soporte'].includes(targetId) ? 'ajustes' : null;
-            if (parentTab) {
-                const parentLink = document.querySelector(`.sidebar-nav a[data-target="${parentTab}"]`);
-                parentLink?.parentElement.classList.add('active');
-            }
-        }
-
-        mainSections.forEach(section => section.classList.toggle('active', section.id === targetId));
-
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Se utiliza un objeto de callbacks para mantener el código limpio y escalable.
+    const handleNavigation = (targetId) => {
+        navigateToTab(targetId);
         if (callbacks[targetId]) {
             callbacks[targetId]();
         }
-        // --- FIN DE LA MODIFICACIÓN ---
-    }
+    };
 
     navLinks.forEach(link => {
-        if (link.dataset.target) {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                navigateToTab(link.dataset.target);
-            });
-        }
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            navLinks.forEach(l => l.parentElement.classList.remove('active'));
+            link.parentElement.classList.add('active');
+            handleNavigation(link.dataset.target);
+        });
     });
 
-    settingsGrid?.addEventListener('click', (e) => {
-        e.preventDefault();
-        const card = e.target.closest('.settings-card');
-        if (card && card.dataset.target) {
-            navigateToTab(card.dataset.target);
-        }
+    settingsCards.forEach(card => {
+        card.addEventListener('click', () => {
+            handleNavigation(card.dataset.target);
+        });
     });
 
+    // --- INICIO DE MODIFICACIÓN: Corrección del botón "Regresar" ---
     backToSettingsButtons.forEach(button => {
         button.addEventListener('click', (e) => {
             e.preventDefault();
-            navigateToTab(button.dataset.target);
+            // La instrucción ahora es fija: siempre volver a la sección 'settings'.
+            handleNavigation('settings');
         });
     });
+    // --- FIN DE MODIFICACIÓN ---
 
     clickableKpis.forEach(kpi => {
         kpi.addEventListener('click', () => {
             const targetTab = kpi.dataset.targetTab;
             const filter = kpi.dataset.filter;
-            if (targetTab) navigateToTab(targetTab);
+            if (targetTab) {
+                // Simula el clic en el enlace de la barra lateral para que se marque como activo
+                const correspondingLink = document.querySelector(`.sidebar-nav a[data-target="${targetTab}"]`);
+                correspondingLink?.click();
+            }
             if (filter === 'open') {
-                currentFilterStatus = 'open';
-                document.querySelectorAll('#ticket-filter-buttons .filter-btn').forEach(btn => btn.classList.remove('active'));
-                applyFilters();
+                const openFilterButton = document.querySelector('#ticket-filter-buttons .filter-btn[data-status="Pendiente"]');
+                openFilterButton?.click();
             }
         });
     });
+}
+
+function applyFilters() {
+    const searchTicketInput = document.getElementById('search-ticket-input');
+    const searchTerm = searchTicketInput ? searchTicketInput.value.toLowerCase() : '';
+    
+    let filteredTickets = allTickets;
+
+    if (currentFilterStatus !== 'all') {
+        if (currentFilterStatus === 'open') {
+            filteredTickets = allTickets.filter(ticket => ticket.Estado === 'Pendiente' || ticket.Estado === 'En Progreso');
+        } else {
+            filteredTickets = allTickets.filter(ticket => ticket.Estado === currentFilterStatus);
+        }
+    }
+
+    if (searchTerm) {
+        filteredTickets = filteredTickets.filter(ticket => 
+            (ticket['Nombre_Cliente'] && ticket['Nombre_Cliente'].toLowerCase().includes(searchTerm)) ||
+            (ticket['Numero_Cliente'] && ticket['Numero_Cliente'].includes(searchTerm))
+        );
+    }
+    
+    const ticketsTableBody = document.getElementById('tickets-table-body');
+    render.renderTickets(ticketsTableBody, filteredTickets);
 }
 
 export function initializeTicketFilters(initialTickets) {
