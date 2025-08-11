@@ -106,22 +106,18 @@ export function initializeUINavigation(callbacks) {
         });
     });
 
-    // --- INICIO DE MODIFICACIÓN: Corrección del botón "Regresar" ---
     backToSettingsButtons.forEach(button => {
         button.addEventListener('click', (e) => {
             e.preventDefault();
-            // La instrucción ahora es fija: siempre volver a la sección 'settings'.
             handleNavigation('settings');
         });
     });
-    // --- FIN DE MODIFICACIÓN ---
 
     clickableKpis.forEach(kpi => {
         kpi.addEventListener('click', () => {
             const targetTab = kpi.dataset.targetTab;
             const filter = kpi.dataset.filter;
             if (targetTab) {
-                // Simula el clic en el enlace de la barra lateral para que se marque como activo
                 const correspondingLink = document.querySelector(`.sidebar-nav a[data-target="${targetTab}"]`);
                 correspondingLink?.click();
             }
@@ -173,4 +169,33 @@ export function initializeTicketFilters(initialTickets) {
             applyFilters();
         }
     });
+}
+
+/**
+ * Muestra una notificación temporal (toast) en la pantalla.
+ * @param {string} message - El mensaje a mostrar.
+ * @param {string} type - El tipo de notificación ('success', 'error', 'info').
+ */
+export function showFeedback(message, type = 'info') {
+    const feedbackContainer = document.createElement('div');
+    feedbackContainer.className = `feedback-toast ${type}`;
+    feedbackContainer.textContent = message;
+
+    document.body.appendChild(feedbackContainer);
+
+    // Pequeño delay para permitir que el elemento se añada al DOM antes de la transición
+    setTimeout(() => {
+        feedbackContainer.classList.add('show');
+    }, 10);
+
+    // Ocultar y eliminar la notificación después de 4 segundos
+    setTimeout(() => {
+        feedbackContainer.classList.remove('show');
+        // Espera a que la transición de salida termine para eliminar el elemento
+        setTimeout(() => {
+            if (document.body.contains(feedbackContainer)) {
+                document.body.removeChild(feedbackContainer);
+            }
+        }, 500);
+    }, 4000);
 }

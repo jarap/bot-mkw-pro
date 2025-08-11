@@ -3,7 +3,7 @@
 // Orquesta la inicialización de los módulos y la gestión de eventos.
 
 import * as api from './api.js';
-import * as ui from './ui.js';
+import * as ui from './ui.js'; // <--- CORRECCIÓN: Se añade la importación que faltaba.
 import * as render from './render.js';
 import * as modals from './modals.js';
 
@@ -200,7 +200,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function initializeEventListeners() {
         ui.initializeUISidebar();
         
-        // --- INICIO DE MODIFICACIÓN: Callbacks de navegación actualizados ---
         const navigationCallbacks = {
             'history': renderCurrentTickets,
             'calendar': loadAndRenderCalendar,
@@ -213,7 +212,6 @@ document.addEventListener('DOMContentLoaded', () => {
             'ajustes-faq-ventas': forceReloadSalesData,
             'ajustes-faq-soporte': forceReloadSalesData,
         };
-        // --- FIN DE MODIFICACIÓN ---
         ui.initializeUINavigation(navigationCallbacks);
 
         modals.initializeModals();
@@ -262,6 +260,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         handleUpdateZonas(currentList);
                     }
                 });
+                return;
+            }
+
+            const changeLogoBtn = e.target.closest('#change-logo-btn');
+            if (changeLogoBtn) {
+                document.getElementById('logo-file-input')?.click();
                 return;
             }
 
