@@ -35,36 +35,24 @@ export const getCompanyConfig = () => fetchData('/api/config/empresa');
 export const getVentasConfig = () => fetchData('/api/config/ventas');
 export const getCalendarEvents = () => fetchData('/api/calendar/events');
 
-// --- INICIO DE MODIFICACIONES: Funciones para el Gestor de Menús ---
+// --- INICIO DE MODIFICACIONES: Funciones para el Gestor de Menús Jerárquico ---
 
-export const getMenus = () => fetchData('/api/menus');
+export const getAllMenuItems = () => fetchData('/api/menu-items');
 
-export const createMenu = (menuId) => fetchData('/api/menus', {
+export const addMenuItem = (itemData) => fetchData('/api/menu-items', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ menuId }),
+    body: JSON.stringify(itemData),
 });
 
-export const deleteMenu = (menuId) => fetchData(`/api/menus/${menuId}`, {
-    method: 'DELETE',
-});
-
-export const updateMenuDetails = (menuId, data) => fetchData(`/api/menus/${menuId}/details`, {
+export const updateMenuItem = (itemId, itemData) => fetchData(`/api/menu-items/${itemId}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
+    body: JSON.stringify(itemData),
 });
 
-export const addMenuOption = (menuId, optionData) => fetchData(`/api/menus/${menuId}/options`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(optionData),
-});
-
-export const deleteMenuOption = (menuId, optionData) => fetchData(`/api/menus/${menuId}/options`, {
+export const deleteMenuItem = (itemId) => fetchData(`/api/menu-items/${itemId}`, {
     method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(optionData),
 });
 
 // --- FIN DE MODIFICACIONES ---

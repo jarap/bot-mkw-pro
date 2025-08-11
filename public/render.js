@@ -1,155 +1,106 @@
 // public/render.js
 // Módulo para renderizar (dibujar) HTML en el DOM.
 
-// --- INICIO DE MODIFICACIONES: Funciones para el Gestor de Menús ---
+/**
+ * Función auxiliar para construir un árbol jerárquico a partir de una lista plana de items.
+ * @param {Array} items - La lista de todos los items de menú.
+ * @param {string} parentId - El ID del padre para empezar a construir el árbol.
+ * @returns {Array} Un array de nodos de árbol, con sus hijos anidados.
+ */
+function buildMenuTree(items, parentId = 'root') {
+    const tree = items
+        .filter(item => item.parent === parentId)
+        .sort((a, b) => a.order - b.order);
+
+    tree.forEach(node => {
+        node.children = buildMenuTree(items, node.id);
+    });
+
+    return tree;
+}
 
 /**
- * Dibuja la interfaz principal del editor de menús.
- * @param {HTMLElement} container - El div donde se renderizará el editor.
- * @param {Array} menus - La lista de todos los menús.
- * @param {object} state - El estado actual de la aplicación.
+ * Función auxiliar recursiva para dibujar el HTML del árbol de menús.
+ * @param {Array} nodes - Los nodos del árbol a renderizar.
+ * @returns {string} El HTML del árbol.
  */
-export function renderMenuEditor(container, menus, state) {
+function renderTreeHTML(nodes) {
+    if (!nodes || nodes.length === 0) return '';
+    
+    // Se añade la clase 'menu-tree-level' para poder aplicar los estilos de anidación.
+    let html = '<ul class="menu-tree-level">';
+    for (const node of nodes) {
+        html += `
+            <li data-item-id="${node.id}">
+                <div class="menu-item-node">
+                    <span class="menu-item-title"><i class="fas fa-stream"></i> ${node.title}</span>
+                    <div class="menu-item-actions">
+                        <button class="action-btn-small add-child-btn" title="Añadir hijo" data-parent-id="${node.id}"><i class="fas fa-plus"></i></button>
+                        <button class="action-btn-small edit-item-btn" title="Editar item" data-item-id="${node.id}"><i class="fas fa-edit"></i></button>
+                        <button class="action-btn-small delete-item-btn" title="Eliminar item" data-item-id="${node.id}"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                ${renderTreeHTML(node.children)}
+            </li>
+        `;
+    }
+    html += '</ul>';
+    return html;
+}
+
+/**
+ * Dibuja la interfaz principal del editor de menús jerárquico.
+ * @param {HTMLElement} container - El div donde se renderizará el editor.
+ * @param {Array} allItems - La lista plana de todos los items de menú.
+ */
+export function renderMenuEditor(container, allItems) {
     if (!container) return;
 
-    container.innerHTML = `
-        <div class="menu-editor-layout">
-            <div class="menu-list-column">
-                <div class="card-header">
-                    <h3>Menús Disponibles</h3>
-                    <button class="action-btn-small" id="create-menu-btn"><i class="fas fa-plus"></i> Crear Menú</button>
-                </div>
-                <ul id="menu-list-ul">
-                    ${menus.map(menu => `
-                        <li data-menu-id="${menu.id}" class="${state.selectedMenuId === menu.id ? 'active' : ''}">
-                            <span>${menu.id}</span>
-                            <button class="action-btn-small delete-menu-btn" data-menu-id="${menu.id}">&times;</button>
-                        </li>
-                    `).join('')}
-                </ul>
-            </div>
-            <div class="menu-details-column" id="menu-details-container">
-                <!-- Los detalles del menú seleccionado se renderizarán aquí -->
-            </div>
-        </div>
-    `;
-
-    // Si hay un menú seleccionado, renderizamos sus detalles.
-    if (state.selectedMenuId) {
-        const selectedMenu = menus.find(m => m.id === state.selectedMenuId);
-        if (selectedMenu) {
-            renderSelectedMenuDetails(document.getElementById('menu-details-container'), selectedMenu);
-        }
-    } else {
-        document.getElementById('menu-details-container').innerHTML = '<p>Selecciona un menú de la lista para editarlo.</p>';
-    }
-}
-
-/**
- * Dibuja los detalles y opciones del menú seleccionado.
- * @param {HTMLElement} container - El div donde se renderizarán los detalles.
- * @param {object} menu - El objeto del menú seleccionado.
- */
-function renderSelectedMenuDetails(container, menu) {
-    if (!container || !menu) return;
+    const tree = buildMenuTree(allItems);
 
     container.innerHTML = `
-        <form id="menu-details-form" data-menu-id="${menu.id}">
-            <div class="form-group">
-                <label for="menu-title">Título del Menú</label>
-                <input type="text" id="menu-title" name="title" value="${menu.title || ''}" required>
-            </div>
-            <div class="form-group">
-                <label for="menu-description">Descripción del Menú</label>
-                <textarea id="menu-description" name="description" rows="3" required>${menu.description || ''}</textarea>
-            </div>
-            <button type="submit">Guardar Cambios</button>
-        </form>
-        <hr>
         <div class="card-header">
-            <h3>Opciones del Menú</h3>
-            <button class="action-btn-small" id="add-option-btn" data-menu-id="${menu.id}"><i class="fas fa-plus"></i> Añadir Opción</button>
+            <h3>Editor de Menú Jerárquico</h3>
+            <button class="action-btn-small" id="add-root-item-btn"><i class="fas fa-plus"></i> Añadir Item Principal</button>
         </div>
-        <table class="tickets-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Texto</th>
-                    <th>Acción</th>
-                    <th>Valor</th>
-                    <th style="width: 120px;">Acciones</th>
-                </tr>
-            </thead>
-            <tbody id="menu-options-tbody">
-                ${(menu.options || []).map((option, index) => `
-                    <tr>
-                        <td>${option.id}</td>
-                        <td>${option.text}</td>
-                        <td><span class="status-badge status-en-progreso">${option.action.type}</span></td>
-                        <td>${option.action.value}</td>
-                        <td>
-                            <button class="action-btn-small delete-option-btn" data-menu-id="${menu.id}" data-option-index="${index}"><i class="fas fa-trash"></i></button>
-                        </td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
+        <div class="menu-tree-container">
+            ${tree.length > 0 ? renderTreeHTML(tree) : '<p>No hay items de menú. Comienza añadiendo un item principal.</p>'}
+        </div>
     `;
 }
 
+
 /**
- * Dibuja el contenido del modal para añadir/editar una opción de menú.
+ * Dibuja el contenido del modal para añadir/editar un item de menú.
  * @param {HTMLElement} formFieldsEl - El contenedor de los campos del formulario.
- * @param {Array} allMenus - La lista de todos los menús para el desplegable.
+ * @param {object} [itemData={}] - Los datos del item si se está editando.
+ * @param {string} parentId - El ID del padre del item que se está creando/editando.
  */
-export function renderMenuOptionModal(formFieldsEl, allMenus) {
-    const actionTypes = ['submenu', 'reply', 'create_ticket', 'run_service_check'];
-    
+export function renderMenuItemModal(formFieldsEl, itemData = {}, parentId) {
+    const actionTypes = ['submenu', 'reply', 'create_ticket'];
+
     formFieldsEl.innerHTML = `
+        <input type="hidden" name="parent" value="${parentId}">
         <div class="form-group">
-            <label for="option-id">ID (Número a marcar)</label>
-            <input type="text" name="id" id="option-id" placeholder="Ej: 1, 2, 9" required>
+            <label for="item-title">Título del Item</label>
+            <input type="text" name="title" id="item-title" value="${itemData.title || ''}" placeholder="Ej: Consultas Técnicas" required>
         </div>
         <div class="form-group">
-            <label for="option-text">Texto de la Opción</label>
-            <input type="text" name="text" id="option-text" placeholder="Ej: Consultas Técnicas" required>
+            <label for="item-order">Orden (Número)</label>
+            <input type="number" name="order" id="item-order" value="${itemData.order || '1'}" required>
         </div>
         <div class="form-group">
             <label for="action-type">Tipo de Acción</label>
-            <select name="type" id="action-type" required>
-                ${actionTypes.map(type => `<option value="${type}">${type}</option>`).join('')}
+            <select name="actionType" id="action-type" required>
+                ${actionTypes.map(type => `<option value="${type}" ${itemData.actionType === type ? 'selected' : ''}>${type}</option>`).join('')}
             </select>
         </div>
-        <div class="form-group" id="action-value-container">
-            <label for="action-value">Valor / Destino</label>
-            <!-- Este campo cambiará dinámicamente -->
-            <input type="text" name="value" id="action-value" required>
+        <div class="form-group">
+            <label for="item-description">Descripción / Valor de la Acción</label>
+            <textarea name="description" id="item-description" rows="4" placeholder="Si la acción es 'reply', este es el texto que se envía. Si no, es una descripción interna.">${itemData.description || ''}</textarea>
         </div>
     `;
-
-    // Lógica para cambiar el campo de valor dinámicamente
-    const actionTypeSelect = document.getElementById('action-type');
-    const valueContainer = document.getElementById('action-value-container');
-    
-    actionTypeSelect.addEventListener('change', (e) => {
-        const selectedType = e.target.value;
-        if (selectedType === 'submenu') {
-            valueContainer.innerHTML = `
-                <label for="action-value">Menú de Destino</label>
-                <select name="value" id="action-value" required>
-                    ${allMenus.map(menu => `<option value="${menu.id}">${menu.id}</option>`).join('')}
-                </select>
-            `;
-        } else {
-            valueContainer.innerHTML = `
-                <label for="action-value">Valor / Destino</label>
-                <input type="text" name="value" id="action-value" placeholder="Escribe el texto de respuesta o el nombre del ticket" required>
-            `;
-        }
-    });
 }
-
-// --- FIN DE MODIFICACIONES ---
 
 export function getSentimentHTML(sentiment) {
     if (!sentiment) {

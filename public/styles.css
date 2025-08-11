@@ -457,3 +457,88 @@ input:checked + .switch-slider:before {
     border-radius: var(--border-radius-2);
     box-shadow: var(--box-shadow);
 }
+
+/* --- INICIO DE MODIFICACIÓN: Estilos para el Árbol de Menú Jerárquico --- */
+.menu-tree-container {
+    padding: 1rem;
+    background-color: var(--color-background);
+    border-radius: var(--border-radius-2);
+}
+
+.menu-tree-level {
+    list-style: none;
+    padding-left: 25px;
+    position: relative;
+}
+
+/* La línea vertical que conecta los items */
+.menu-tree-level::before {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background-color: var(--color-info-light);
+}
+
+.menu-tree-level li {
+    position: relative;
+    margin-bottom: 0.5rem;
+}
+
+/* La línea horizontal que conecta al item con la línea vertical principal */
+.menu-tree-level li::before {
+    content: '';
+    position: absolute;
+    left: -15px;
+    top: 18px; /* Ajustar para alinear con el centro del texto */
+    width: 15px;
+    height: 1px;
+    background-color: var(--color-info-light);
+}
+
+/* Ocultar la línea vertical para el último elemento de la lista para que no se extienda de más */
+.menu-tree-level li:last-child > .menu-item-node::after {
+    content: '';
+    position: absolute;
+    left: -15px; /* Debe coincidir con el left de li::before */
+    top: 19px;
+    bottom: 0;
+    width: 1px;
+    background-color: var(--color-background); /* Pinta sobre la línea vertical con el color de fondo */
+}
+
+.menu-item-node {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--color-white);
+    padding: 0.8rem 1.2rem;
+    border-radius: var(--border-radius-2);
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    transition: all 300ms ease;
+}
+
+.menu-item-node:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+}
+
+.menu-item-title {
+    font-weight: 500;
+    color: var(--color-dark);
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.menu-item-title i {
+    color: var(--color-primary);
+}
+
+.menu-item-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+/* --- FIN DE MODIFICACIÓN --- */

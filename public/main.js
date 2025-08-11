@@ -16,10 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         companyConfig: {},
         ventasConfig: {},
         activeSessions: [],
-        // --- INICIO DE MODIFICACIÓN: Estado para el gestor de menús ---
-        menus: [],
-        selectedMenuId: null
-        // --- FIN DE MODIFICACIÓN ---
+        menuItems: [] 
     };
 
     let calendarInstance = null;
@@ -43,9 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         connectBtn: document.getElementById('connect-btn'),
         disconnectBtn: document.getElementById('disconnect-btn'),
         calendarContainer: document.getElementById('calendar-container'),
-        // --- INICIO DE MODIFICACIÓN: Contenedor para el editor de menús ---
         menuEditorContainer: document.getElementById('ajustes-bot-soporte')?.querySelector('.card-body')
-        // --- FIN DE MODIFICACIÓN ---
     };
 
     async function loadInitialData() {
@@ -120,18 +115,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN: Función para cargar y renderizar el gestor de menús ---
     async function loadAndRenderMenuEditor() {
         if (!dom.menuEditorContainer) return;
         try {
-            const menusData = await api.getMenus();
-            state.menus = menusData;
-            render.renderMenuEditor(dom.menuEditorContainer, state.menus, state);
+            const menuItems = await api.getAllMenuItems();
+            state.menuItems = menuItems;
+            render.renderMenuEditor(dom.menuEditorContainer, state.menuItems);
         } catch (error) {
             dom.menuEditorContainer.innerHTML = `<p class="error-message">No se pudo cargar el gestor de menús.</p>`;
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
 
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -201,9 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'faq-soporte': forceReloadSalesData,
             'ajustes-empresa': loadAndRenderCompanyConfig,
             'ajustes-bot-venta': loadAndRenderVentasConfig,
-            // --- INICIO DE MODIFICACIÓN: Callback para la nueva sección ---
             'ajustes-bot-soporte': loadAndRenderMenuEditor
-            // --- FIN DE MODIFICACIÓN ---
         };
         ui.initializeUINavigation(navigationCallbacks);
 
@@ -324,81 +315,56 @@ document.addEventListener('DOMContentLoaded', () => {
 
         dom.addSupportFaqBtn?.addEventListener('click', () => modals.openSalesModal('soporteFAQ', {}, state.salesData));
 
-        // --- INICIO DE MODIFICACIÓN: Event Listeners para el Gestor de Menús ---
         dom.menuEditorContainer?.addEventListener('click', async (e) => {
-            // Seleccionar un menú de la lista
-            const menuItem = e.target.closest('li[data-menu-id]');
-            if (menuItem) {
-                state.selectedMenuId = menuItem.dataset.menuId;
-                await loadAndRenderMenuEditor(); // Recargamos para reflejar la selección
-            }
-
-            // Crear un nuevo menú
-            const createBtn = e.target.closest('#create-menu-btn');
-            if (createBtn) {
-                const newMenuId = prompt('Introduce el ID para el nuevo menú (ej: "facturacion"):');
-                if (newMenuId && !state.menus.find(m => m.id === newMenuId)) {
-                    await api.createMenu(newMenuId);
-                    await loadAndRenderMenuEditor();
-                } else if (newMenuId) {
-                    modals.showCustomAlert('Error', 'Ya existe un menú con ese ID.');
-                }
-            }
-
-            // Eliminar un menú
-            const deleteMenuBtn = e.target.closest('.delete-menu-btn');
-            if (deleteMenuBtn) {
-                const menuId = deleteMenuBtn.dataset.menuId;
-                modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro que quieres eliminar el menú "${menuId}"? Esta acción no se puede deshacer.`, async () => {
-                    await api.deleteMenu(menuId);
-                    state.selectedMenuId = null; // Deseleccionamos
-                    await loadAndRenderMenuEditor();
-                });
-            }
-
-            // Añadir una nueva opción
-            const addOptionBtn = e.target.closest('#add-option-btn');
-            if (addOptionBtn) {
-                const menuId = addOptionBtn.dataset.menuId;
-                modals.openMenuOptionModal(state.menus, async (newOption) => {
-                    await api.addMenuOption(menuId, newOption);
-                    await loadAndRenderMenuEditor();
-                });
-            }
-
-            // Eliminar una opción
-            const deleteOptionBtn = e.target.closest('.delete-option-btn');
-            if (deleteOptionBtn) {
-                const menuId = deleteOptionBtn.dataset.menuId;
-                const optionIndex = parseInt(deleteOptionBtn.dataset.optionIndex, 10);
-                const menu = state.menus.find(m => m.id === menuId);
-                const optionToDelete = menu?.options[optionIndex];
-                if (optionToDelete) {
-                    modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro que quieres eliminar la opción "${optionToDelete.text}"?`, async () => {
-                        await api.deleteMenuOption(menuId, optionToDelete);
+            const openModalAndSave = async (itemData = {}, parentId, itemId = null) => {
+                modals.openMenuItemModal(itemData, parentId, async (formData) => {
+                    try {
+                        if (itemId) {
+                            await api.updateMenuItem(itemId, formData);
+                        } else {
+                            await api.addMenuItem(formData);
+                        }
                         await loadAndRenderMenuEditor();
-                    });
-                }
-            }
-        });
+                    } catch (error) {
+                        modals.showCustomAlert('Error', 'No se pudo guardar el item del menú.');
+                    }
+                });
+            };
 
-        // Guardar cambios en los detalles del menú
-        dom.menuEditorContainer?.addEventListener('submit', async (e) => {
-            if (e.target.id === 'menu-details-form') {
-                e.preventDefault();
-                const menuId = e.target.dataset.menuId;
-                const formData = new FormData(e.target);
-                const data = { title: formData.get('title'), description: formData.get('description') };
-                try {
-                    await api.updateMenuDetails(menuId, data);
-                    modals.showCustomAlert('Éxito', 'Detalles del menú guardados.');
-                    await loadAndRenderMenuEditor();
-                } catch (error) {
-                    modals.showCustomAlert('Error', 'No se pudieron guardar los cambios.');
+            const addRootBtn = e.target.closest('#add-root-item-btn');
+            if (addRootBtn) {
+                openModalAndSave({}, 'root');
+            }
+
+            const addChildBtn = e.target.closest('.add-child-btn');
+            if (addChildBtn) {
+                const parentId = addChildBtn.dataset.parentId;
+                openModalAndSave({}, parentId);
+            }
+
+            const editItemBtn = e.target.closest('.edit-item-btn');
+            if (editItemBtn) {
+                const itemId = editItemBtn.dataset.itemId;
+                const itemData = state.menuItems.find(item => item.id === itemId);
+                if (itemData) {
+                    openModalAndSave(itemData, itemData.parent, itemId);
                 }
             }
+
+            const deleteItemBtn = e.target.closest('.delete-item-btn');
+            if (deleteItemBtn) {
+                const itemId = deleteItemBtn.dataset.itemId;
+                const item = state.menuItems.find(i => i.id === itemId);
+                modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro que quieres eliminar "${item.title}" y todos sus sub-items?`, async () => {
+                    try {
+                        await api.deleteMenuItem(itemId);
+                        await loadAndRenderMenuEditor();
+                    } catch (error) {
+                        modals.showCustomAlert('Error', 'No se pudo eliminar el item.');
+                    }
+                });
+            }
         });
-        // --- FIN DE MODIFICACIÓN ---
     }
 
     initializeWebSocket();

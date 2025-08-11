@@ -71,11 +71,8 @@ function hideTicketModal() {
     if (overlay) overlay.classList.remove('show');
 }
 
-// --- Lógica del Modal de Ventas (Añadir/Editar) ---
-// --- INICIO DE LA MODIFICACIÓN ---
-// Se ha modificado esta función para que acepte el tipo 'soporteFAQ'.
+// --- Lógica del Modal de Ventas (Añadir/Editar Items Generales) ---
 export function openSalesModal(type, data = {}, salesData) {
-// --- FIN DE LA MODIFICACIÓN ---
     const overlay = document.getElementById('sales-modal-overlay');
     const titleEl = document.getElementById('sales-modal-title');
     const formFieldsEl = document.getElementById('sales-form-fields');
@@ -108,12 +105,10 @@ export function openSalesModal(type, data = {}, salesData) {
                     <label for="promo-nombre">Nombre de la Promoción</label>
                     <input type="text" id="promo-nombre" name="nombre" placeholder="Ej: Promo Verano" value="${data.nombre || ''}" required>
                 </div>
-
                 <div class="form-group">
                     <label for="promo-descripcion">Descripción</label>
                     <textarea id="promo-descripcion" name="descripcion" rows="3" placeholder="Detalles de la promoción">${data.descripcion || ''}</textarea>
                 </div>
-
                 <div class="form-group-row">
                     <div class="form-group">
                         <label for="promo-descuento">Descuento en Instalación (%)</label>
@@ -127,7 +122,6 @@ export function openSalesModal(type, data = {}, salesData) {
                         </label>
                     </div>
                 </div>
-
                 <div class="form-group">
                     <label>Zonas Aplicables</label>
                     <div class="zone-actions">
@@ -140,8 +134,6 @@ export function openSalesModal(type, data = {}, salesData) {
                 </div>
             `;
             break;
-        // --- INICIO DE LA MODIFICACIÓN ---
-        // Se agrupan los casos para reutilizar el mismo formulario.
         case 'preguntasFrecuentes':
         case 'soporteFAQ':
             formHTML = `
@@ -149,7 +141,6 @@ export function openSalesModal(type, data = {}, salesData) {
                 <textarea name="respuesta" rows="4" placeholder="Respuesta oficial">${data.respuesta || ''}</textarea>
             `;
             break;
-        // --- FIN DE LA MODIFICACIÓN ---
         case 'zona':
             titleEl.textContent = `${data.isEditing ? 'Editar' : 'Añadir'} Zona de Cobertura`;
             formHTML = `
@@ -173,6 +164,53 @@ function closeSalesModal() {
     const overlay = document.getElementById('sales-modal-overlay');
     if (overlay) overlay.classList.remove('show');
 }
+
+
+// --- INICIO DE LA CORRECCIÓN ---
+/**
+ * Abre un modal específico para añadir o editar un item del menú jerárquico.
+ * @param {object} itemData - Los datos del item (vacío si es nuevo).
+ * @param {string} parentId - El ID del item padre.
+ * @param {Function} onSave - Callback que se ejecuta al guardar.
+ */
+export function openMenuItemModal(itemData, parentId, onSave) {
+    const overlay = document.getElementById('sales-modal-overlay');
+    const titleEl = document.getElementById('sales-modal-title');
+    const formFieldsEl = document.getElementById('sales-form-fields');
+    const form = document.getElementById('sales-form');
+
+    if (!overlay || !titleEl || !formFieldsEl || !form) return;
+
+    // Determinar si es para añadir o editar
+    const isEditing = !!itemData.id;
+    titleEl.textContent = isEditing ? 'Editar Item del Menú' : 'Añadir Nuevo Item';
+
+    // Usamos la función de render.js para crear los campos del formulario
+    render.renderMenuItemModal(formFieldsEl, itemData, parentId);
+
+    // Limpiamos y reasignamos el evento submit para evitar duplicados
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+
+    newForm.onsubmit = (e) => {
+        e.preventDefault();
+        const formData = new FormData(newForm);
+        const savedData = {
+            parent: formData.get('parent'),
+            title: formData.get('title'),
+            order: parseInt(formData.get('order'), 10),
+            actionType: formData.get('actionType'),
+            description: formData.get('description'),
+        };
+        
+        onSave(savedData); // Ejecutamos la función de guardado que pasamos como parámetro
+        closeSalesModal();
+    };
+
+    overlay.classList.add('show');
+}
+// --- FIN DE LA CORRECCIÓN ---
+
 
 export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
     document.getElementById('close-modal-btn')?.addEventListener('click', hideTicketModal);
@@ -221,29 +259,5 @@ export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
             const index = editZonaButton.dataset.index;
             openSalesModal('zona', { nombre: zona, isEditing: true, originalIndex: index });
         }
-    });
-
-    document.getElementById('sales-form')?.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const { type, id } = e.target.dataset;
-        
-        if (type === 'zona') return;
-
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData.entries());
-        
-        if (type === 'planes') {
-            data.precioMensual = Number(data.precioMensual);
-            data.velocidadBajada = Number(data.velocidadBajada);
-            data.velocidadSubida = Number(data.velocidadSubida);
-        }
-
-        if (id) {
-            await api.updateItem(type, id, data);
-        } else {
-            await api.addItem(type, data);
-        }
-        closeSalesModal();
-        forceReloadSalesData();
     });
 }

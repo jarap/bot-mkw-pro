@@ -19,135 +19,108 @@ try {
     const planesCollection = db.collection('planes');
     const promosCollection = db.collection('promociones');
     const faqsCollection = db.collection('preguntasFrecuentes');
-    const knowledgeCollection = db.collection('knowledge');
     const configCollection = db.collection('configuracion');
     const zonasCollection = db.collection('zonasCobertura');
     const soporteFaqsCollection = db.collection('soporteFAQ');
-    const menuSoporteCollection = db.collection('menuSoporte');
+    const menuItemsCollection = db.collection('menuItems');
 
-    // --- INICIO DE MODIFICACIONES PARA GESTOR DE MENÚS ---
-
+    // --- INICIO DE LA CORRECCIÓN ---
     /**
-     * Obtiene la lista de todos los menús disponibles.
-     * @returns {Promise<object>} Un objeto con la lista de menús.
+     * Obtiene un único item de menú por su ID.
+     * @param {string} itemId - El ID del documento a obtener.
+     * @returns {Promise<object|null>} El objeto del item o null si no se encuentra.
      */
-    async function getMenus() {
+    async function getMenuItemById(itemId) {
         try {
-            const snapshot = await menuSoporteCollection.get();
-            if (snapshot.empty) {
-                return { success: true, data: [] };
+            const docRef = menuItemsCollection.doc(itemId);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) {
+                return { id: docSnap.id, ...docSnap.data() };
             }
-            const menus = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            return { success: true, data: menus };
-        } catch (error) {
-            console.error(chalk.red('❌ Error al obtener la lista de menús:'), error);
-            return { success: false, message: 'No se pudo obtener la lista de menús.' };
-        }
-    }
-
-    /**
-     * Actualiza los datos de un menú existente (título, descripción).
-     * @param {string} menuId - El ID del menú a actualizar.
-     * @param {object} data - Los datos a actualizar (ej: { title, description }).
-     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
-     */
-    async function updateMenuDetails(menuId, data) {
-        try {
-            await menuSoporteCollection.doc(menuId).update(data);
-            return { success: true };
-        } catch (error) {
-            console.error(chalk.red(`❌ Error al actualizar detalles del menú ${menuId}:`), error);
-            return { success: false, message: 'No se pudo actualizar el menú.' };
-        }
-    }
-    
-    /**
-     * Añade una nueva opción a un menú existente.
-     * @param {string} menuId - El ID del menú.
-     * @param {object} optionData - Los datos de la nueva opción.
-     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
-     */
-    async function addMenuOption(menuId, optionData) {
-        try {
-            const menuRef = menuSoporteCollection.doc(menuId);
-            await menuRef.update({
-                options: FieldValue.arrayUnion(optionData)
-            });
-            return { success: true };
-        } catch (error) {
-            console.error(chalk.red(`❌ Error al añadir opción al menú ${menuId}:`), error);
-            return { success: false, message: 'No se pudo añadir la opción.' };
-        }
-    }
-
-    /**
-     * Elimina una opción de un menú.
-     * @param {string} menuId - El ID del menú.
-     * @param {object} optionData - Los datos de la opción a eliminar.
-     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
-     */
-    async function deleteMenuOption(menuId, optionData) {
-        try {
-            const menuRef = menuSoporteCollection.doc(menuId);
-            await menuRef.update({
-                options: FieldValue.arrayRemove(optionData)
-            });
-            return { success: true };
-        } catch (error) {
-            console.error(chalk.red(`❌ Error al eliminar opción del menú ${menuId}:`), error);
-            return { success: false, message: 'No se pudo eliminar la opción.' };
-        }
-    }
-    
-    /**
-     * Crea un nuevo documento de menú.
-     * @param {string} menuId - El ID para el nuevo menú.
-     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
-     */
-    async function createMenu(menuId) {
-        try {
-            const newMenuData = {
-                title: `Nuevo Menú (${menuId})`,
-                description: "Descripción por defecto.",
-                options: []
-            };
-            await menuSoporteCollection.doc(menuId).set(newMenuData);
-            return { success: true, data: { id: menuId, ...newMenuData } };
-        } catch (error) {
-            console.error(chalk.red(`❌ Error al crear el menú ${menuId}:`), error);
-            return { success: false, message: 'No se pudo crear el menú.' };
-        }
-    }
-    
-    /**
-     * Elimina un documento de menú completo.
-     * @param {string} menuId - El ID del menú a eliminar.
-     * @returns {Promise<object>} Un objeto indicando el éxito o fracaso.
-     */
-    async function deleteMenu(menuId) {
-        try {
-            await menuSoporteCollection.doc(menuId).delete();
-            return { success: true };
-        } catch (error) {
-            console.error(chalk.red(`❌ Error al eliminar el menú ${menuId}:`), error);
-            return { success: false, message: 'No se pudo eliminar el menú.' };
-        }
-    }
-
-    // --- FIN DE MODIFICACIONES ---
-
-    async function getMenu(menuId) {
-        try {
-            const docRef = menuSoporteCollection.doc(menuId);
-            const doc = await docRef.get();
-            if (!doc.exists) {
-                console.error(chalk.red(`❌ No se encontró el menú con ID '${menuId}' en Firestore.`));
-                return null;
-            }
-            return { id: doc.id, ...doc.data() };
-        } catch (error) {
-            console.error(chalk.red(`❌ Error al obtener el menú '${menuId}' de Firestore:`), error);
             return null;
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al obtener el item de menú por ID ${itemId}:`), error);
+            return null;
+        }
+    }
+    // --- FIN DE LA CORRECCIÓN ---
+
+
+    async function getAllMenuItems() {
+        try {
+            const snapshot = await menuItemsCollection.orderBy('order').get();
+            const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return { success: true, data: items };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al obtener todos los items de menú:'), error);
+            return { success: false, message: 'No se pudieron obtener los items del menú.' };
+        }
+    }
+
+    async function addMenuItem(itemData) {
+        try {
+            const docRef = await menuItemsCollection.add(itemData);
+            return { success: true, id: docRef.id };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al añadir un item de menú:'), error);
+            return { success: false, message: 'No se pudo añadir el item.' };
+        }
+    }
+
+    async function updateMenuItem(itemId, itemData) {
+        try {
+            await menuItemsCollection.doc(itemId).update(itemData);
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al actualizar el item de menú ${itemId}:`), error);
+            return { success: false, message: 'No se pudo actualizar el item.' };
+        }
+    }
+
+    async function deleteMenuItem(itemId) {
+        try {
+            const allItemsSnapshot = await menuItemsCollection.get();
+            const allItems = allItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            const itemsToDelete = new Set([itemId]);
+            let searchQueue = [itemId];
+
+            while (searchQueue.length > 0) {
+                const currentParentId = searchQueue.shift();
+                const children = allItems.filter(item => item.parent === currentParentId);
+                for (const child of children) {
+                    itemsToDelete.add(child.id);
+                    searchQueue.push(child.id);
+                }
+            }
+
+            const batch = db.batch();
+            itemsToDelete.forEach(id => {
+                batch.delete(menuItemsCollection.doc(id));
+            });
+            await batch.commit();
+
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al eliminar el item de menú ${itemId} y sus descendientes:`), error);
+            return { success: false, message: 'No se pudo eliminar el item y sus hijos.' };
+        }
+    }
+    
+    async function getMenuItems(parentId) {
+        try {
+            const snapshot = await menuItemsCollection
+                .where('parent', '==', parentId)
+                .orderBy('order')
+                .get();
+            
+            if (snapshot.empty) {
+                return [];
+            }
+            return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al obtener items del menú para el padre ${parentId}:`), error);
+            return [];
         }
     }
 
@@ -202,7 +175,7 @@ try {
                 planesCollection.orderBy('precioMensual').get(),
                 promosCollection.get(),
                 faqsCollection.get(),
-                knowledgeCollection.doc('configuracionGeneral').get(),
+                configCollection.doc('ventas').get(),
                 zonasCollection.limit(1).get(),
                 soporteFaqsCollection.get()
             ]);
@@ -335,16 +308,14 @@ try {
         getVentasConfig,
         updateVentasConfig,
         getSupportFaqs,
-        getMenu,
-        // --- INICIO DE MODIFICACIÓN ---
-        // Exportamos las nuevas funciones para que puedan ser usadas por el panel web.
-        getMenus,
-        updateMenuDetails,
-        addMenuOption,
-        deleteMenuOption,
-        createMenu,
-        deleteMenu
-        // --- FIN DE MODIFICACIÓN ---
+        getMenuItems,
+        getAllMenuItems,
+        addMenuItem,
+        updateMenuItem,
+        deleteMenuItem,
+        // --- INICIO DE LA CORRECCIÓN ---
+        getMenuItemById // Exportamos la nueva función
+        // --- FIN DE LA CORRECCIÓN ---
     };
 
 } catch (error) {
