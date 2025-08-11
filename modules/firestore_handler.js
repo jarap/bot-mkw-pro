@@ -24,12 +24,6 @@ try {
     const soporteFaqsCollection = db.collection('soporteFAQ');
     const menuItemsCollection = db.collection('menuItems');
 
-    // --- INICIO DE LA CORRECCIÓN ---
-    /**
-     * Obtiene un único item de menú por su ID.
-     * @param {string} itemId - El ID del documento a obtener.
-     * @returns {Promise<object|null>} El objeto del item o null si no se encuentra.
-     */
     async function getMenuItemById(itemId) {
         try {
             const docRef = menuItemsCollection.doc(itemId);
@@ -43,8 +37,6 @@ try {
             return null;
         }
     }
-    // --- FIN DE LA CORRECCIÓN ---
-
 
     async function getAllMenuItems() {
         try {
@@ -57,25 +49,58 @@ try {
         }
     }
 
+    // --- INICIO DE MODIFICACIÓN: Añadir validaciones ---
     async function addMenuItem(itemData) {
         try {
+            const desiredOrder = parseInt(itemData.order, 10);
+            if (isNaN(desiredOrder) || desiredOrder < 1 || desiredOrder > 9) {
+                throw new Error('El número de orden debe ser entre 1 y 9.');
+            }
+
+            const siblingsSnapshot = await menuItemsCollection.where('parent', '==', itemData.parent).get();
+            
+            if (siblingsSnapshot.size >= 9) {
+                throw new Error('Límite alcanzado: solo se permiten 9 opciones por nivel.');
+            }
+
+            const orderExists = siblingsSnapshot.docs.some(doc => doc.data().order === desiredOrder);
+            if (orderExists) {
+                throw new Error(`El número de orden ${desiredOrder} ya está en uso en este nivel.`);
+            }
+
             const docRef = await menuItemsCollection.add(itemData);
             return { success: true, id: docRef.id };
         } catch (error) {
-            console.error(chalk.red('❌ Error al añadir un item de menú:'), error);
-            return { success: false, message: 'No se pudo añadir el item.' };
+            console.error(chalk.red('❌ Error al añadir un item de menú:'), error.message);
+            // Re-lanzamos el error para que sea capturado por el frontend
+            throw error;
         }
     }
 
     async function updateMenuItem(itemId, itemData) {
         try {
+            const desiredOrder = parseInt(itemData.order, 10);
+            if (isNaN(desiredOrder) || desiredOrder < 1 || desiredOrder > 9) {
+                throw new Error('El número de orden debe ser entre 1 y 9.');
+            }
+
+            const siblingsSnapshot = await menuItemsCollection.where('parent', '==', itemData.parent).get();
+
+            // Buscamos si otro item (distinto al que estamos editando) ya usa ese número de orden.
+            const orderExists = siblingsSnapshot.docs.some(doc => doc.id !== itemId && doc.data().order === desiredOrder);
+            if (orderExists) {
+                throw new Error(`El número de orden ${desiredOrder} ya está en uso en este nivel.`);
+            }
+
             await menuItemsCollection.doc(itemId).update(itemData);
             return { success: true };
         } catch (error) {
-            console.error(chalk.red(`❌ Error al actualizar el item de menú ${itemId}:`), error);
-            return { success: false, message: 'No se pudo actualizar el item.' };
+            console.error(chalk.red(`❌ Error al actualizar el item de menú ${itemId}:`), error.message);
+            throw error;
         }
     }
+    // --- FIN DE MODIFICACIÓN ---
+
 
     async function deleteMenuItem(itemId) {
         try {
@@ -313,9 +338,7 @@ try {
         addMenuItem,
         updateMenuItem,
         deleteMenuItem,
-        // --- INICIO DE LA CORRECCIÓN ---
-        getMenuItemById // Exportamos la nueva función
-        // --- FIN DE LA CORRECCIÓN ---
+        getMenuItemById
     };
 
 } catch (error) {

@@ -144,41 +144,44 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // --- INICIO DE MODIFICACIÓN: Endpoints para el Gestor de Menús Jerárquico ---
-    // Se reemplazan los endpoints antiguos por estos nuevos que entienden la estructura padre-hijo.
-
-    // Obtener TODOS los items de menú para construir el árbol en el panel.
     app.get('/api/menu-items', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getAllMenuItems();
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // Crear un nuevo item de menú.
+    // --- INICIO DE MODIFICACIÓN: Manejo de errores de validación ---
     app.post('/api/menu-items', checkAuth, async (req, res) => {
         const itemData = req.body;
         if (!itemData || !itemData.title || !itemData.parent) {
             return res.status(400).json({ success: false, message: 'Faltan datos para crear el item.' });
         }
-        const result = await firestoreHandler.addMenuItem(itemData);
-        res.status(result.success ? 201 : 500).json(result);
+        try {
+            const result = await firestoreHandler.addMenuItem(itemData);
+            res.status(201).json(result);
+        } catch (error) {
+            // Si firestoreHandler lanza un error, lo atrapamos y lo enviamos al frontend.
+            res.status(400).json({ success: false, message: error.message });
+        }
     });
 
-    // Actualizar un item de menú existente.
     app.put('/api/menu-items/:id', checkAuth, async (req, res) => {
         const { id } = req.params;
         const itemData = req.body;
-        const result = await firestoreHandler.updateMenuItem(id, itemData);
-        res.status(result.success ? 200 : 500).json(result);
+        try {
+            const result = await firestoreHandler.updateMenuItem(id, itemData);
+            res.status(200).json(result);
+        } catch (error) {
+            // Si firestoreHandler lanza un error, lo atrapamos y lo enviamos al frontend.
+            res.status(400).json({ success: false, message: error.message });
+        }
     });
+    // --- FIN DE MODIFICACIÓN ---
 
-    // Eliminar un item de menú (y todos sus hijos).
     app.delete('/api/menu-items/:id', checkAuth, async (req, res) => {
         const { id } = req.params;
         const result = await firestoreHandler.deleteMenuItem(id);
         res.status(result.success ? 200 : 500).json(result);
     });
-
-    // --- FIN DE MODIFICACIÓN ---
 
     const wssClients = new Set();
     wss.on('connection', async (ws) => {

@@ -5,7 +5,7 @@ import * as api from './api.js';
 import * as render from './render.js';
 
 // --- Lógica del Modal de Confirmación (Genérico) ---
-function showConfirmationModal(title, text, onOk) {
+export function showConfirmationModal(title, text, onOk) {
     const overlay = document.getElementById('confirm-modal-overlay');
     const titleEl = document.getElementById('confirm-modal-title');
     const textEl = document.getElementById('confirm-modal-text');
@@ -18,6 +18,7 @@ function showConfirmationModal(title, text, onOk) {
     textEl.textContent = text;
     overlay.classList.add('show');
 
+    // Clonamos los botones para limpiar listeners de eventos anteriores
     const newOkBtn = okBtn.cloneNode(true);
     okBtn.parentNode.replaceChild(newOkBtn, okBtn);
     
@@ -165,14 +166,6 @@ function closeSalesModal() {
     if (overlay) overlay.classList.remove('show');
 }
 
-
-// --- INICIO DE LA CORRECCIÓN ---
-/**
- * Abre un modal específico para añadir o editar un item del menú jerárquico.
- * @param {object} itemData - Los datos del item (vacío si es nuevo).
- * @param {string} parentId - El ID del item padre.
- * @param {Function} onSave - Callback que se ejecuta al guardar.
- */
 export function openMenuItemModal(itemData, parentId, onSave) {
     const overlay = document.getElementById('sales-modal-overlay');
     const titleEl = document.getElementById('sales-modal-title');
@@ -181,14 +174,11 @@ export function openMenuItemModal(itemData, parentId, onSave) {
 
     if (!overlay || !titleEl || !formFieldsEl || !form) return;
 
-    // Determinar si es para añadir o editar
     const isEditing = !!itemData.id;
     titleEl.textContent = isEditing ? 'Editar Item del Menú' : 'Añadir Nuevo Item';
 
-    // Usamos la función de render.js para crear los campos del formulario
     render.renderMenuItemModal(formFieldsEl, itemData, parentId);
 
-    // Limpiamos y reasignamos el evento submit para evitar duplicados
     const newForm = form.cloneNode(true);
     form.parentNode.replaceChild(newForm, form);
 
@@ -203,16 +193,16 @@ export function openMenuItemModal(itemData, parentId, onSave) {
             description: formData.get('description'),
         };
         
-        onSave(savedData); // Ejecutamos la función de guardado que pasamos como parámetro
+        onSave(savedData);
         closeSalesModal();
     };
 
     overlay.classList.add('show');
 }
-// --- FIN DE LA CORRECCIÓN ---
 
-
-export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
+// --- INICIO DE MODIFICACIÓN: Se simplifica la inicialización ---
+// La lógica de escuchar clics en las tablas se ha movido a main.js
+export function initializeModals() {
     document.getElementById('close-modal-btn')?.addEventListener('click', hideTicketModal);
     document.getElementById('ticket-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'ticket-modal-overlay') hideTicketModal(); });
     
@@ -232,32 +222,12 @@ export function initializeModals(getSalesDataCallback, forceReloadSalesData) {
     document.getElementById('close-sales-modal-btn')?.addEventListener('click', closeSalesModal);
     document.getElementById('sales-modal-overlay')?.addEventListener('click', (e) => { if (e.target.id === 'sales-modal-overlay') closeSalesModal(); });
     
-    document.getElementById('add-plan-btn')?.addEventListener('click', () => openSalesModal('planes', {}, getSalesDataCallback()));
-    document.getElementById('add-promo-btn')?.addEventListener('click', () => openSalesModal('promociones', {}, getSalesDataCallback()));
-    document.getElementById('add-faq-btn')?.addEventListener('click', () => openSalesModal('preguntasFrecuentes', {}, getSalesDataCallback()));
+    // Los listeners para los botones de añadir se mantienen aquí
+    document.getElementById('add-plan-btn')?.addEventListener('click', () => openSalesModal('planes'));
+    document.getElementById('add-promo-btn')?.addEventListener('click', () => openSalesModal('promociones'));
+    document.getElementById('add-faq-btn')?.addEventListener('click', () => openSalesModal('preguntasFrecuentes'));
     document.getElementById('add-zona-btn')?.addEventListener('click', () => {
         openSalesModal('zona', { isEditing: false });
     });
-    
-    document.body.addEventListener('click', (e) => {
-        const editButton = e.target.closest('.edit-btn');
-        if (editButton) {
-            const itemData = JSON.parse(editButton.dataset.item.replace(/&apos;/g, "'").replace(/&quot;/g, '"'));
-            openSalesModal(editButton.dataset.type, itemData, getSalesDataCallback());
-        }
-        const deleteButton = e.target.closest('.delete-btn');
-        if (deleteButton) {
-            const { type, id } = deleteButton.dataset;
-            showConfirmationModal('Confirmar Eliminación', '¿Estás seguro?', async () => {
-                await api.deleteItem(type, id);
-                forceReloadSalesData();
-            });
-        }
-        const editZonaButton = e.target.closest('.edit-zona-btn');
-        if (editZonaButton) {
-            const zona = editZonaButton.dataset.zona;
-            const index = editZonaButton.dataset.index;
-            openSalesModal('zona', { nombre: zona, isEditing: true, originalIndex: index });
-        }
-    });
 }
+// --- FIN DE MODIFICACIÓN ---

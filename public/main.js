@@ -198,13 +198,114 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         ui.initializeUINavigation(navigationCallbacks);
 
-        modals.initializeModals(modals.openSalesModal, forceReloadSalesData);
+        modals.initializeModals();
 
-        document.body.addEventListener('click', (e) => {
-            const viewButton = e.target.closest('.view-ticket-btn');
-            if (viewButton && viewButton.dataset.ticketId) {
-                const ticketData = state.tickets.find(t => t.ID_Ticket === viewButton.dataset.ticketId);
+        document.body.addEventListener('click', async (e) => {
+            const viewTicketBtn = e.target.closest('.view-ticket-btn');
+            if (viewTicketBtn) {
+                const ticketId = viewTicketBtn.dataset.ticketId;
+                const ticketData = state.tickets.find(t => t.ID_Ticket === ticketId);
                 if (ticketData) modals.showTicketModal(ticketData);
+                return;
+            }
+
+            const editBtn = e.target.closest('.edit-btn');
+            if (editBtn) {
+                const itemData = JSON.parse(editBtn.dataset.item.replace(/&apos;/g, "'").replace(/&quot;/g, '"'));
+                modals.openSalesModal(editBtn.dataset.type, itemData, state.salesData);
+                return;
+            }
+
+            const editZonaBtn = e.target.closest('.edit-zona-btn');
+            if (editZonaBtn) {
+                const zona = editZonaBtn.dataset.zona;
+                const index = editZonaBtn.dataset.index;
+                modals.openSalesModal('zona', { nombre: zona, isEditing: true, originalIndex: index });
+                return;
+            }
+
+            const deleteBtn = e.target.closest('.delete-btn');
+            if (deleteBtn) {
+                const { type, id } = deleteBtn.dataset;
+                modals.showConfirmationModal('Confirmar Eliminación', '¿Estás seguro?', async () => {
+                    await api.deleteItem(type, id);
+                    await forceReloadSalesData();
+                });
+                return;
+            }
+            
+            const deleteZonaBtn = e.target.closest('.delete-zona-btn');
+            if (deleteZonaBtn) {
+                const index = parseInt(deleteZonaBtn.dataset.index, 10);
+                modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro?`, () => {
+                    const currentList = [...(state.salesData.zonasCobertura.listado || [])];
+                    if (index > -1) {
+                        currentList.splice(index, 1);
+                        handleUpdateZonas(currentList);
+                    }
+                });
+                return;
+            }
+
+            // --- INICIO DE MODIFICACIÓN: Manejo de errores de validación ---
+            const openModalAndSave = async (itemData = {}, parentId, itemId = null) => {
+                modals.openMenuItemModal(itemData, parentId, async (formData) => {
+                    try {
+                        if (itemId) {
+                            await api.updateMenuItem(itemId, formData);
+                        } else {
+                            await api.addMenuItem(formData);
+                        }
+                        await loadAndRenderMenuEditor();
+                    } catch (error) {
+                        // Capturamos el error del backend y se lo mostramos al usuario.
+                        modals.showCustomAlert('Error de Validación', error.message);
+                    }
+                });
+            };
+            // --- FIN DE MODIFICACIÓN ---
+
+            const addRootBtn = e.target.closest('#add-root-item-btn');
+            if (addRootBtn) {
+                openModalAndSave({}, 'root');
+                return;
+            }
+
+            const addChildBtn = e.target.closest('.add-child-btn');
+            if (addChildBtn) {
+                const parentId = addChildBtn.dataset.parentId;
+                openModalAndSave({}, parentId);
+                return;
+            }
+
+            const editItemBtn = e.target.closest('.edit-item-btn');
+            if (editItemBtn) {
+                const itemId = editItemBtn.dataset.itemId;
+                const itemData = state.menuItems.find(item => item.id === itemId);
+                if (itemData) {
+                    openModalAndSave(itemData, itemData.parent, itemId);
+                }
+                return;
+            }
+
+            const deleteItemBtn = e.target.closest('.delete-item-btn');
+            if (deleteItemBtn) {
+                const itemId = deleteItemBtn.dataset.itemId;
+                const item = state.menuItems.find(i => i.id === itemId);
+                if (item) {
+                    modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro que quieres eliminar "${item.title}" y todos sus sub-items?`, async () => {
+                        try {
+                            await api.deleteMenuItem(itemId);
+                            await loadAndRenderMenuEditor();
+                        } catch (error) {
+                            modals.showCustomAlert('Error', 'No se pudo eliminar el item.');
+                        }
+                    });
+                } else {
+                    console.error(`Se intentó borrar el item con ID ${itemId} pero no se encontró en el estado.`);
+                    modals.showCustomAlert('Error', 'No se pudo encontrar el item para eliminar. Refresca la página.');
+                }
+                return;
             }
         });
 
@@ -299,72 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('close-sales-modal-btn')?.click();
         });
 
-        dom.zonasTableBody?.addEventListener('click', (e) => {
-            const deleteButton = e.target.closest('.delete-zona-btn');
-            if (deleteButton) {
-                const index = parseInt(deleteButton.dataset.index, 10);
-                modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro?`, () => {
-                    const currentList = [...(state.salesData.zonasCobertura.listado || [])];
-                    if (index > -1) {
-                        currentList.splice(index, 1);
-                        handleUpdateZonas(currentList);
-                    }
-                });
-            }
-        });
-
         dom.addSupportFaqBtn?.addEventListener('click', () => modals.openSalesModal('soporteFAQ', {}, state.salesData));
-
-        dom.menuEditorContainer?.addEventListener('click', async (e) => {
-            const openModalAndSave = async (itemData = {}, parentId, itemId = null) => {
-                modals.openMenuItemModal(itemData, parentId, async (formData) => {
-                    try {
-                        if (itemId) {
-                            await api.updateMenuItem(itemId, formData);
-                        } else {
-                            await api.addMenuItem(formData);
-                        }
-                        await loadAndRenderMenuEditor();
-                    } catch (error) {
-                        modals.showCustomAlert('Error', 'No se pudo guardar el item del menú.');
-                    }
-                });
-            };
-
-            const addRootBtn = e.target.closest('#add-root-item-btn');
-            if (addRootBtn) {
-                openModalAndSave({}, 'root');
-            }
-
-            const addChildBtn = e.target.closest('.add-child-btn');
-            if (addChildBtn) {
-                const parentId = addChildBtn.dataset.parentId;
-                openModalAndSave({}, parentId);
-            }
-
-            const editItemBtn = e.target.closest('.edit-item-btn');
-            if (editItemBtn) {
-                const itemId = editItemBtn.dataset.itemId;
-                const itemData = state.menuItems.find(item => item.id === itemId);
-                if (itemData) {
-                    openModalAndSave(itemData, itemData.parent, itemId);
-                }
-            }
-
-            const deleteItemBtn = e.target.closest('.delete-item-btn');
-            if (deleteItemBtn) {
-                const itemId = deleteItemBtn.dataset.itemId;
-                const item = state.menuItems.find(i => i.id === itemId);
-                modals.showConfirmationModal('Confirmar Eliminación', `¿Seguro que quieres eliminar "${item.title}" y todos sus sub-items?`, async () => {
-                    try {
-                        await api.deleteMenuItem(itemId);
-                        await loadAndRenderMenuEditor();
-                    } catch (error) {
-                        modals.showCustomAlert('Error', 'No se pudo eliminar el item.');
-                    }
-                });
-            }
-        });
     }
 
     initializeWebSocket();
