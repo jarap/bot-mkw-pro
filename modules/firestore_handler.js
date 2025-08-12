@@ -306,6 +306,9 @@ try {
             const doc = await docRef.get();
             
             const defaultConfig = {
+                // --- INICIO DE MODIFICACIÓN ---
+                respuestasPorVozActivas: true, // Valor por defecto
+                // --- FIN DE MODIFICACIÓN ---
                 promptAnalisisSentimiento: `Analiza el sentimiento del siguiente mensaje de un cliente a su proveedor de internet. Responde únicamente con una de estas cuatro palabras: "enojado", "frustrado", "neutro", "contento". Mensaje: "{userMessage}"`,
                 promptIntencionGeneral: `Analiza el siguiente mensaje de un cliente a su proveedor de internet. Tu tarea es clasificar la intención principal del mensaje en una de tres categorías. Responde únicamente con una de estas tres palabras: "soporte", "ventas", "pregunta_general".
 
@@ -405,15 +408,15 @@ Mensaje del cliente: "{userMessage}"`,
         updateCompanyConfig,
         getVentasConfig,
         updateVentasConfig,
+        getSoporteConfig,
+        updateSoporteConfig,
         getSupportFaqs,
         getMenuItems,
         getAllMenuItems,
         addMenuItem,
         updateMenuItem,
         deleteMenuItem,
-        getMenuItemById,
-        getSoporteConfig,
-        updateSoporteConfig
+        getMenuItemById
     };
 
 } catch (error) {

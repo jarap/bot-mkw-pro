@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] }, soporteFaqs: [] },
         companyConfig: {},
         ventasConfig: {},
-        soporteConfig: {}, // Nuevo estado para la config de soporte
+        soporteConfig: {},
         activeSessions: [],
         menuItems: [] 
     };
@@ -32,6 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
         addSupportFaqBtn: document.getElementById('add-support-faq-btn'),
         companyConfigForm: document.getElementById('company-config-form'),
         ventasConfigForm: document.getElementById('ventas-config-form'),
+        soporteConfigForm: document.getElementById('soporte-config-form'),
         zonasTableBody: document.getElementById('zonas-table-body'),
         salesForm: document.getElementById('sales-form'),
         openTicketsValue: document.getElementById('open-tickets-value'),
@@ -44,9 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
         menuEditorContainer: document.getElementById('menu-editor-container'),
         scheduledVisitsValue: document.getElementById('scheduled-visits-value'),
         visitsFilterButtons: document.getElementById('visits-filter-buttons'),
-        // --- INICIO DE MODIFICACIÓN ---
-        soporteConfigForm: document.getElementById('soporte-config-form'),
-        // --- FIN DE MODIFICACIÓN ---
     };
 
     async function loadInitialData() {
@@ -103,7 +101,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN ---
     async function loadAndRenderSoporteConfig() {
         try {
             const configData = await api.getSoporteConfig();
@@ -113,7 +110,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Fallo al cargar la configuración de soporte.", error);
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
     
     async function loadAndRenderCalendar() {
         if (!dom.calendarContainer) return;
@@ -221,10 +217,8 @@ document.addEventListener('DOMContentLoaded', () => {
             'calendar': loadAndRenderCalendar,
             'ajustes-empresa': loadAndRenderCompanyConfig,
             'ajustes-bot-venta': loadAndRenderVentasConfig,
-            // --- INICIO DE MODIFICACIÓN ---
             'ajustes-menu-editor': loadAndRenderMenuEditor,
             'ajustes-bot-soporte-prompts': loadAndRenderSoporteConfig,
-            // --- FIN DE MODIFICACIÓN ---
             'ajustes-planes': forceReloadSalesData,
             'ajustes-promociones': forceReloadSalesData,
             'ajustes-zonas': forceReloadSalesData,
@@ -390,11 +384,18 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
         
-        // --- INICIO DE MODIFICACIÓN ---
         dom.soporteConfigForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(dom.soporteConfigForm);
             const newConfigData = Object.fromEntries(formData.entries());
+
+            // --- INICIO DE MODIFICACIÓN ---
+            // FormData solo incluye checkboxes si están marcados.
+            // Nos aseguramos de que el valor sea siempre booleano.
+            const voiceToggle = dom.soporteConfigForm.querySelector('#soporte-respuestasPorVozActivas');
+            newConfigData.respuestasPorVozActivas = voiceToggle ? voiceToggle.checked : false;
+            // --- FIN DE MODIFICACIÓN ---
+
             try {
                 await api.saveSoporteConfig(newConfigData);
                 modals.showCustomAlert('Éxito', 'Configuración del bot de soporte guardada.');
@@ -402,7 +403,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 modals.showCustomAlert('Error', 'No se pudo guardar la configuración de soporte.');
             }
         });
-        // --- FIN DE MODIFICACIÓN ---
 
         dom.companyConfigForm?.addEventListener('change', async (e) => {
             if (e.target.id === 'logo-file-input' && e.target.files[0]) {

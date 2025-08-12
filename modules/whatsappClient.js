@@ -90,13 +90,23 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN (TTS) ---
     /**
-     * Envía una respuesta de la IA, intentando primero como audio y, si falla, como texto.
+     * Envía una respuesta de la IA, respetando la configuración de respuesta por voz.
      * @param {string} chatId - El ID del chat del cliente.
      * @param {string} textResponse - La respuesta de texto generada por la IA.
      */
     async sendAiResponse(chatId, textResponse) {
+        // --- INICIO DE MODIFICACIÓN ---
+        const configResult = await firestoreHandler.getSoporteConfig();
+        const voiceResponsesEnabled = configResult.success && configResult.data.respuestasPorVozActivas;
+
+        if (!voiceResponsesEnabled) {
+            // Si las respuestas por voz están desactivadas, envía texto y termina.
+            await this.client.sendMessage(chatId, textResponse);
+            return;
+        }
+        // --- FIN DE MODIFICACIÓN ---
+
         const audioBase64 = await iaHandler.sintetizarVoz(textResponse);
         if (audioBase64) {
             try {
@@ -112,7 +122,6 @@ class WhatsAppClient extends EventEmitter {
             await this.client.sendMessage(chatId, textResponse);
         }
     }
-    // --- FIN DE MODIFICACIÓN (TTS) ---
 
     async handleClientMessage(message) {
         const chatId = message.from;
@@ -445,7 +454,7 @@ class WhatsAppClient extends EventEmitter {
                 return;
             }
         } else {
-            await this.relayToClient(session, message);
+            await this.relayToClient(session, agentMessage);
         }
     }
 
@@ -467,7 +476,7 @@ class WhatsAppClient extends EventEmitter {
             
             await this.client.sendMessage(clientChatId, '✅ Tu solicitud ha sido enviada. Un agente la tomará en breve.');
             this.emit('sessionsUpdate');
-            await redisClient.set(`state:${clientChatId}`, { awaiting_agent: true }, STATE_TTL_SECONDS);
+            await redisClient.set(`state:${chatId}`, { awaiting_agent: true }, STATE_TTL_SECONDS);
         } catch (error) {
             console.error(chalk.red.bold('❌ ERROR CRÍTICO al crear ticket:'), error);
             await this.client.sendMessage(clientChatId, 'Lo siento, tuvimos un problema interno al crear tu solicitud.');

@@ -380,11 +380,24 @@ export function renderVentasConfigForm(form, config) {
     `;
 }
 
-// --- INICIO DE MODIFICACIÓN ---
 export function renderSoporteConfigForm(form, config) {
     if (!form) return;
     
+    // --- INICIO DE MODIFICACIÓN ---
+    const isVoiceEnabled = config.respuestasPorVozActivas === true;
+
     form.innerHTML = `
+        <div class="form-group toggle-group">
+            <div>
+                <label for="soporte-respuestasPorVozActivas">Activar Respuestas por Voz</label>
+                <small>Si está activo, el bot responderá con notas de voz. Si no, usará texto.</small>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="soporte-respuestasPorVozActivas" name="respuestasPorVozActivas" ${isVoiceEnabled ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <hr style="margin: 1.5rem 0;">
         <div class="form-group">
             <label for="soporte-promptAnalisisSentimiento">Prompt para Análisis de Sentimiento</label>
             <textarea id="soporte-promptAnalisisSentimiento" name="promptAnalisisSentimiento" rows="5">${config.promptAnalisisSentimiento || ''}</textarea>
@@ -402,5 +415,5 @@ export function renderSoporteConfigForm(form, config) {
         </div>
         <button type="submit">Guardar Prompts de Soporte</button>
     `;
+    // --- FIN DE MODIFICACIÓN ---
 }
-// --- FIN DE MODIFICACIÓN ---
