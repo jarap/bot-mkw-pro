@@ -79,14 +79,11 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
     
-    // --- INICIO DE MODIFICACIÓN: Nuevo endpoint para contar eventos ---
     app.get('/api/calendar/events/count', checkAuth, async (req, res) => {
-        // Leemos el parámetro 'days' de la URL, con un valor por defecto de 15.
         const days = parseInt(req.query.days, 10) || 15;
         const result = await calendarHandler.countUpcomingEvents(days);
         res.status(result.success ? 200 : 500).json(result);
     });
-    // --- FIN DE MODIFICACIÓN ---
 
     app.get('/api/salesdata', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getSalesData();
@@ -136,6 +133,18 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         const result = await firestoreHandler.updateVentasConfig(req.body);
         res.status(result.success ? 200 : 500).json(result);
     });
+
+    // --- INICIO DE MODIFICACIÓN ---
+    app.get('/api/config/soporte', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getSoporteConfig();
+        res.status(result.success ? 200 : 500).json(result);
+    });
+
+    app.post('/api/config/soporte', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updateSoporteConfig(req.body);
+        res.status(result.success ? 200 : 500).json(result);
+    });
+    // --- FIN DE MODIFICACIÓN ---
 
     app.post('/api/data/:collection', checkAuth, async (req, res) => {
         const { collection } = req.params;
@@ -223,7 +232,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
     }
 
     async function broadcastKPIs() {
-        // Esta función ya no enviará el conteo de calendario, se hará bajo demanda.
         const openTicketsCount = await firestoreHandler.countOpenTickets();
         broadcast({ type: 'kpiUpdate', data: { openTickets: openTicketsCount } });
     }

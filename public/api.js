@@ -35,9 +35,10 @@ export const getCompanyConfig = () => fetchData('/api/config/empresa');
 export const getVentasConfig = () => fetchData('/api/config/ventas');
 export const getCalendarEvents = () => fetchData('/api/calendar/events');
 export const getAllMenuItems = () => fetchData('/api/menu-items');
-
-// --- INICIO DE MODIFICACIÓN: Nueva función para contar eventos del calendario ---
 export const getCalendarEventsCount = (days) => fetchData(`/api/calendar/events/count?days=${days}`);
+
+// --- INICIO DE MODIFICACIÓN ---
+export const getSoporteConfig = () => fetchData('/api/config/soporte');
 // --- FIN DE MODIFICACIÓN ---
 
 
@@ -69,6 +70,14 @@ export const saveVentasConfig = (data) => fetchData('/api/config/ventas', {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
 });
+
+// --- INICIO DE MODIFICACIÓN ---
+export const saveSoporteConfig = (data) => fetchData('/api/config/soporte', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+});
+// --- FIN DE MODIFICACIÓN ---
 
 export const addItem = (collection, data) => fetchData(`/api/data/${collection}`, {
     method: 'POST',

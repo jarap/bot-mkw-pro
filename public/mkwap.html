@@ -217,7 +217,6 @@
                     </div>
                 </section>
 
-                <!-- --- INICIO DE MODIFICACIÓN: Restauración de la estructura de Ajustes --- -->
                 <!-- Settings Section (Pantalla Principal de Ajustes) -->
                 <section id="settings" class="main-section">
                     <div class="card">
@@ -232,10 +231,12 @@
                                     <div class="settings-icon"><i class="fas fa-robot"></i></div>
                                     <span>Ajustes Bot Venta</span>
                                 </div>
+                                <!-- --- INICIO DE MODIFICACIÓN --- -->
                                 <div class="settings-card" data-target="ajustes-bot-soporte">
-                                    <div class="settings-icon"><i class="fas fa-sitemap"></i></div>
-                                    <span>Editor de Menús</span>
+                                    <div class="settings-icon"><i class="fas fa-headset"></i></div>
+                                    <span>Ajustes Bot Soporte</span>
                                 </div>
+                                <!-- --- FIN DE MODIFICACIÓN --- -->
                                 <div class="settings-card" data-target="ajustes-planes">
                                     <div class="settings-icon"><i class="fas fa-wifi"></i></div>
                                     <span>Planes de Internet</span>
@@ -286,17 +287,52 @@
                     </div>
                 </section>
 
+                <!-- --- INICIO DE MODIFICACIÓN --- -->
                 <section id="ajustes-bot-soporte" class="main-section">
                     <div class="card">
                         <div class="card-header">
-                            <h3>Editor de Menús Jerárquico</h3>
+                            <h3>Ajustes del Bot de Soporte</h3>
                             <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
                         </div>
                         <div class="card-body">
+                           <div class="settings-grid">
+                                <div class="settings-card" data-target="ajustes-menu-editor">
+                                    <div class="settings-icon"><i class="fas fa-sitemap"></i></div>
+                                    <span>Editor de Menús</span>
+                                </div>
+                                <div class="settings-card" data-target="ajustes-bot-soporte-prompts">
+                                    <div class="settings-icon"><i class="fas fa-brain"></i></div>
+                                    <span>Prompts de IA</span>
+                                </div>
+                           </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section id="ajustes-menu-editor" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Editor de Menús Jerárquico</h3>
+                            <button class="action-btn-small back-to-settings" data-target="ajustes-bot-soporte"><i class="fas fa-arrow-left"></i> Regresar</button>
+                        </div>
+                        <div class="card-body" id="menu-editor-container">
                            <!-- El contenido se renderiza dinámicamente aquí -->
                         </div>
                     </div>
                 </section>
+
+                <section id="ajustes-bot-soporte-prompts" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Prompts de IA (Bot de Soporte)</h3>
+                            <button class="action-btn-small back-to-settings" data-target="ajustes-bot-soporte"><i class="fas fa-arrow-left"></i> Regresar</button>
+                        </div>
+                        <div class="card-body">
+                            <form id="soporte-config-form" class="modern-form"></form>
+                        </div>
+                    </div>
+                </section>
+                <!-- --- FIN DE MODIFICACIÓN --- -->
 
                 <section id="ajustes-planes" class="main-section">
                     <div class="card">
@@ -387,8 +423,6 @@
                         </div>
                     </div>
                 </section>
-                <!-- --- FIN DE MODIFICACIÓN --- -->
-
             </div>
         </main>
     </div>

@@ -3,7 +3,7 @@
 // Orquesta la inicialización de los módulos y la gestión de eventos.
 
 import * as api from './api.js';
-import * as ui from './ui.js'; // <--- CORRECCIÓN: Se añade la importación que faltaba.
+import * as ui from './ui.js';
 import * as render from './render.js';
 import * as modals from './modals.js';
 
@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] }, soporteFaqs: [] },
         companyConfig: {},
         ventasConfig: {},
+        soporteConfig: {}, // Nuevo estado para la config de soporte
         activeSessions: [],
         menuItems: [] 
     };
@@ -40,9 +41,12 @@ document.addEventListener('DOMContentLoaded', () => {
         connectBtn: document.getElementById('connect-btn'),
         disconnectBtn: document.getElementById('disconnect-btn'),
         calendarContainer: document.getElementById('calendar-container'),
-        menuEditorContainer: document.getElementById('ajustes-bot-soporte')?.querySelector('.card-body'),
+        menuEditorContainer: document.getElementById('menu-editor-container'),
         scheduledVisitsValue: document.getElementById('scheduled-visits-value'),
         visitsFilterButtons: document.getElementById('visits-filter-buttons'),
+        // --- INICIO DE MODIFICACIÓN ---
+        soporteConfigForm: document.getElementById('soporte-config-form'),
+        // --- FIN DE MODIFICACIÓN ---
     };
 
     async function loadInitialData() {
@@ -98,6 +102,18 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Fallo al cargar la configuración de ventas.", error);
         }
     }
+
+    // --- INICIO DE MODIFICACIÓN ---
+    async function loadAndRenderSoporteConfig() {
+        try {
+            const configData = await api.getSoporteConfig();
+            state.soporteConfig = configData;
+            render.renderSoporteConfigForm(dom.soporteConfigForm, state.soporteConfig);
+        } catch (error) {
+            console.error("Fallo al cargar la configuración de soporte.", error);
+        }
+    }
+    // --- FIN DE MODIFICACIÓN ---
     
     async function loadAndRenderCalendar() {
         if (!dom.calendarContainer) return;
@@ -205,7 +221,10 @@ document.addEventListener('DOMContentLoaded', () => {
             'calendar': loadAndRenderCalendar,
             'ajustes-empresa': loadAndRenderCompanyConfig,
             'ajustes-bot-venta': loadAndRenderVentasConfig,
-            'ajustes-bot-soporte': loadAndRenderMenuEditor,
+            // --- INICIO DE MODIFICACIÓN ---
+            'ajustes-menu-editor': loadAndRenderMenuEditor,
+            'ajustes-bot-soporte-prompts': loadAndRenderSoporteConfig,
+            // --- FIN DE MODIFICACIÓN ---
             'ajustes-planes': forceReloadSalesData,
             'ajustes-promociones': forceReloadSalesData,
             'ajustes-zonas': forceReloadSalesData,
@@ -370,6 +389,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 modals.showCustomAlert('Error', 'No se pudo guardar la configuración.');
             }
         });
+        
+        // --- INICIO DE MODIFICACIÓN ---
+        dom.soporteConfigForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(dom.soporteConfigForm);
+            const newConfigData = Object.fromEntries(formData.entries());
+            try {
+                await api.saveSoporteConfig(newConfigData);
+                modals.showCustomAlert('Éxito', 'Configuración del bot de soporte guardada.');
+            } catch (error) {
+                modals.showCustomAlert('Error', 'No se pudo guardar la configuración de soporte.');
+            }
+        });
+        // --- FIN DE MODIFICACIÓN ---
 
         dom.companyConfigForm?.addEventListener('change', async (e) => {
             if (e.target.id === 'logo-file-input' && e.target.files[0]) {

@@ -27,7 +27,6 @@ function buildMenuTree(items, parentId = 'root') {
 function renderTreeHTML(nodes) {
     if (!nodes || nodes.length === 0) return '';
     
-    // Se añade la clase 'menu-tree-level' para poder aplicar los estilos de anidación.
     let html = '<ul class="menu-tree-level">';
     for (const node of nodes) {
         html += `
@@ -59,12 +58,11 @@ export function renderMenuEditor(container, allItems) {
     const tree = buildMenuTree(allItems);
 
     container.innerHTML = `
-        <div class="card-header">
-            <h3>Editor de Menú Jerárquico</h3>
-            <button class="action-btn-small" id="add-root-item-btn"><i class="fas fa-plus"></i> Añadir Item Principal</button>
-        </div>
         <div class="menu-tree-container">
             ${tree.length > 0 ? renderTreeHTML(tree) : '<p>No hay items de menú. Comienza añadiendo un item principal.</p>'}
+        </div>
+        <div class="card-header" style="margin-top: 1.5rem;">
+             <button class="action-btn-small" id="add-root-item-btn"><i class="fas fa-plus"></i> Añadir Item Principal</button>
         </div>
     `;
 }
@@ -371,13 +369,38 @@ export function renderVentasConfigForm(form, config) {
             <textarea id="ventas-mensajeBienvenida" name="mensajeBienvenida" rows="3">${config.mensajeBienvenida || ''}</textarea>
         </div>
         <div class="form-group">
-            <label for="ventas-descripcionGeneral">Descripción General</label>
+            <label for="ventas-descripcionGeneral">Descripción General (Contexto para IA)</label>
             <textarea id="ventas-descripcionGeneral" name="descripcionGeneral" rows="5">${config.descripcionGeneral || ''}</textarea>
         </div>
         <div class="form-group">
-            <label for="ventas-reglasConversacion">Reglas de Conversación</label>
+            <label for="ventas-reglasConversacion">Reglas de Conversación (Contexto para IA)</label>
             <textarea id="ventas-reglasConversacion" name="reglasConversacion" rows="8">${config.reglasConversacion || ''}</textarea>
         </div>
         <button type="submit">Guardar Ajustes del Bot</button>
     `;
 }
+
+// --- INICIO DE MODIFICACIÓN ---
+export function renderSoporteConfigForm(form, config) {
+    if (!form) return;
+    
+    form.innerHTML = `
+        <div class="form-group">
+            <label for="soporte-promptAnalisisSentimiento">Prompt para Análisis de Sentimiento</label>
+            <textarea id="soporte-promptAnalisisSentimiento" name="promptAnalisisSentimiento" rows="5">${config.promptAnalisisSentimiento || ''}</textarea>
+            <small>Variable disponible: <code>{userMessage}</code></small>
+        </div>
+        <div class="form-group">
+            <label for="soporte-promptIntencionGeneral">Prompt para Intención General</label>
+            <textarea id="soporte-promptIntencionGeneral" name="promptIntencionGeneral" rows="8">${config.promptIntencionGeneral || ''}</textarea>
+            <small>Variable disponible: <code>{userMessage}</code></small>
+        </div>
+        <div class="form-group">
+            <label for="soporte-promptRespuestaSoporte">Prompt para Respuestas de Soporte</label>
+            <textarea id="soporte-promptRespuestaSoporte" name="promptRespuestaSoporte" rows="15">${config.promptRespuestaSoporte || ''}</textarea>
+            <small>Variables disponibles: <code>{knowledgeString}</code>, <code>{chatHistory}</code>, <code>{userMessage}</code></small>
+        </div>
+        <button type="submit">Guardar Prompts de Soporte</button>
+    `;
+}
+// --- FIN DE MODIFICACIÓN ---

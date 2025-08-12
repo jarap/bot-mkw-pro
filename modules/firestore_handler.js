@@ -49,7 +49,6 @@ try {
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN: Añadir validaciones ---
     async function addMenuItem(itemData) {
         try {
             const desiredOrder = parseInt(itemData.order, 10);
@@ -72,7 +71,6 @@ try {
             return { success: true, id: docRef.id };
         } catch (error) {
             console.error(chalk.red('❌ Error al añadir un item de menú:'), error.message);
-            // Re-lanzamos el error para que sea capturado por el frontend
             throw error;
         }
     }
@@ -86,7 +84,6 @@ try {
 
             const siblingsSnapshot = await menuItemsCollection.where('parent', '==', itemData.parent).get();
 
-            // Buscamos si otro item (distinto al que estamos editando) ya usa ese número de orden.
             const orderExists = siblingsSnapshot.docs.some(doc => doc.id !== itemId && doc.data().order === desiredOrder);
             if (orderExists) {
                 throw new Error(`El número de orden ${desiredOrder} ya está en uso en este nivel.`);
@@ -99,8 +96,6 @@ try {
             throw error;
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
-
 
     async function deleteMenuItem(itemId) {
         try {
@@ -305,6 +300,84 @@ try {
         }
     }
 
+    async function getSoporteConfig() {
+        try {
+            const docRef = configCollection.doc('soporte');
+            const doc = await docRef.get();
+            
+            const defaultConfig = {
+                promptAnalisisSentimiento: `Analiza el sentimiento del siguiente mensaje de un cliente a su proveedor de internet. Responde únicamente con una de estas cuatro palabras: "enojado", "frustrado", "neutro", "contento". Mensaje: "{userMessage}"`,
+                promptIntencionGeneral: `Analiza el siguiente mensaje de un cliente a su proveedor de internet. Tu tarea es clasificar la intención principal del mensaje en una de tres categorías. Responde únicamente con una de estas tres palabras: "soporte", "ventas", "pregunta_general".
+
+- "soporte": si el cliente reporta un problema, una falla, que el servicio no funciona, anda lento, etc. (Ej: "no tengo internet", "anda como el culo", "se me cortó el servicio").
+- "ventas": si el cliente pregunta por nuevos planes, cambiar su plan actual, costos, o servicios adicionales. (Ej: "¿qué otros planes tienen?", "¿puedo subir la velocidad?").
+- "pregunta_general": para cualquier otra cosa, como saludos, agradecimientos, o preguntas que no son ni de soporte ni de ventas. (Ej: "hola", "muchas gracias", "¿hasta qué hora están?").
+
+Mensaje del cliente: "{userMessage}"`,
+                promptRespuestaSoporte: `Sos I-Bot, un Asistente Técnico Senior de una empresa de internet en Argentina. Tu personalidad es amable, directa y eficiente. Usás siempre el "voseo". Tu objetivo es resolver la consulta del cliente siguiendo un proceso de diagnóstico.
+
+                **Tu Proceso de Diagnóstico (Seguí estos pasos en orden):**
+                
+                1.  **Acknowledge y Primera Acción:**
+                    * Leé la **Pregunta del Cliente** y el **Historial**.
+                    * Si el cliente está molesto, empezá con una frase corta y empática (ej: "Uf, qué macana.", "Entiendo, revisemos qué pasa.").
+                    * Buscá en la **Base de Conocimiento (FAQs)** una solución inicial para el problema del cliente.
+                    * **Respondé dando UNA SOLA instrucción clara y directa**. Usá **negritas** para la acción.
+                    * *Ejemplo de respuesta:* "Ok, empecemos por lo básico. Por favor, ***reiniciá el módem y la antena***. Desenchufalos 30 segundos y volvelos a enchufar. Avisame cuando lo hayas hecho 👍."
+                
+                2.  **Verificación y Segundo Paso:**
+                    * Cuando el cliente responda, analizá si la primera acción funcionó.
+                    * **Si el problema persiste**, y si la Base de Conocimiento ofrece una segunda pregunta de diagnóstico (como "¿qué luces tiene?"), hacé esa pregunta para obtener más información.
+                    * *Ejemplo de respuesta:* "Lástima que no funcionó. Para seguir, ¿me podrías decir ***qué luces ves prendidas en el módem y de qué color son***? 🤔"
+                
+                3.  **Escalamiento Final:**
+                    * Si el cliente pide hablar con una **persona**, O si ya diste una instrucción y una pregunta de diagnóstico y el problema sigue, **no insistas más**.
+                    * Respondé con una **disculpa amable y variada**, explicando que sos una IA con conocimiento limitado y que lo vas a derivar. **Al final de tu mensaje, incluí la frase \`[NO_ANSWER]\`**.
+                    * *Ejemplo 1:* "La verdad, hasta acá llega mi conocimiento. Para no hacerte perder tiempo, te voy a pasar con una persona de nuestro equipo que te va a poder ayudar mejor. [NO_ANSWER]"
+                    * *Ejemplo 2:* "Ok, parece que este problema necesita una revisión más a fondo. Como soy una IA, hay cosas que se me escapan. Te derivo con un agente para que lo vean en detalle. [NO_ANSWER]"
+                
+                **Base de Conocimiento (ÚNICA fuente de verdad):**
+                ---
+                {knowledgeString}
+                ---
+                
+                **Historial de la Conversación (para entender el contexto):**
+                ---
+                {chatHistory}
+                ---
+                
+                **Pregunta del Cliente:**
+                {userMessage}
+                `
+            };
+
+            if (!doc.exists) {
+                console.warn(chalk.yellow('⚠️ El documento de configuración de soporte no existe. Usando valores por defecto.'));
+                return { success: true, data: defaultConfig };
+            }
+
+            const dbData = doc.data();
+            const finalConfig = { ...defaultConfig, ...dbData };
+            
+            return { success: true, data: finalConfig };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al obtener la configuración de soporte:'), error);
+            return { success: false, message: 'Error al leer la configuración de soporte.' };
+        }
+    }
+
+    async function updateSoporteConfig(data) {
+        try {
+            const docRef = configCollection.doc('soporte');
+            await docRef.set(data, { merge: true });
+            console.log(chalk.blue('🛠️  Configuración del bot de soporte actualizada en Firestore.'));
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al actualizar la configuración de soporte:'), error);
+            return { success: false, message: 'Error al guardar la configuración de soporte.' };
+        }
+    }
+
     async function getSupportFaqs() {
         try {
             const snapshot = await soporteFaqsCollection.get();
@@ -338,7 +411,9 @@ try {
         addMenuItem,
         updateMenuItem,
         deleteMenuItem,
-        getMenuItemById
+        getMenuItemById,
+        getSoporteConfig,
+        updateSoporteConfig
     };
 
 } catch (error) {
