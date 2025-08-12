@@ -2,7 +2,10 @@
 // Script independiente para generar el mapeo de Nombre de Emisor a ID de Monitoreo.
 // Se recomienda ejecutar este script periódicamente (ej. una vez al día) con un cron job.
 
-require('dotenv').config(); // Cargar variables de entorno desde .env
+// --- INICIO DE CORRECCIÓN ---
+// Se estandariza la carga de variables de entorno.
+require('dotenv').config();
+// --- FIN DE CORRECCIÓN ---
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');

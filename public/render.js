@@ -75,7 +75,9 @@ export function renderMenuEditor(container, allItems) {
  * @param {string} parentId - El ID del padre del item que se está creando/editando.
  */
 export function renderMenuItemModal(formFieldsEl, itemData = {}, parentId) {
-    const actionTypes = ['submenu', 'reply', 'create_ticket','pay_invoice'];
+    // --- INICIO DE MODIFICACIÓN ---
+    const actionTypes = ['submenu', 'reply', 'create_ticket', 'pay_invoice'];
+    // --- FIN DE MODIFICACIÓN ---
 
     formFieldsEl.innerHTML = `
         <input type="hidden" name="parent" value="${parentId}">
@@ -90,7 +92,7 @@ export function renderMenuItemModal(formFieldsEl, itemData = {}, parentId) {
         <div class="form-group">
             <label for="action-type">Tipo de Acción</label>
             <select name="actionType" id="action-type" required>
-                ${actionTypes.map(type => `<option value="${type}" ${itemData.actionType === type ? 'selected' : ''}>${type}</option>`).join('')}
+                ${actionTypes.map(type => `<option value="${type}" ${itemData.actionType === type ? 'selected' : ''}>${type.replace('_', ' ')}</option>`).join('')}
             </select>
         </div>
         <div class="form-group">
@@ -383,7 +385,6 @@ export function renderVentasConfigForm(form, config) {
 export function renderSoporteConfigForm(form, config) {
     if (!form) return;
     
-    // --- INICIO DE MODIFICACIÓN ---
     const isVoiceEnabled = config.respuestasPorVozActivas === true;
 
     form.innerHTML = `
@@ -415,5 +416,4 @@ export function renderSoporteConfigForm(form, config) {
         </div>
         <button type="submit">Guardar Prompts de Soporte</button>
     `;
-    // --- FIN DE MODIFICACIÓN ---
 }

@@ -3,10 +3,8 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const { EventEmitter } = require('events');
 const chalk = require('chalk');
 const chrono = require('chrono-node');
-// --- INICIO DE MODIFICACIÓN: Añadimos las dependencias necesarias ---
 const qrcode = require('qrcode');
 const { llamarScriptExterno } = require('./external_scripts');
-// --- FIN DE MODIFICACIÓN ---
 
 const { getClientDetails } = require('./mikrowispClient');
 const calendarHandler = require('./calendar_handler');
@@ -229,7 +227,6 @@ class WhatsAppClient extends EventEmitter {
         const isNumericOption = /^\d+$/.test(userMessage);
         const currentOptions = currentState.currentOptions || [];
     
-        // --- INICIO DE MODIFICACIÓN: Flujo de pago de facturas ---
         if (currentState.step === 'awaiting_invoice_selection') {
             if (isNumericOption) {
                 const selectedIndex = parseInt(userMessage, 10) - 1;
@@ -259,7 +256,6 @@ class WhatsAppClient extends EventEmitter {
             }
             return;
         }
-        // --- FIN DE MODIFICACIÓN ---
 
         if (isNumericOption) {
             const selectedNumber = parseInt(userMessage, 10);
@@ -353,11 +349,9 @@ class WhatsAppClient extends EventEmitter {
                 const initialMessage = `Cliente seleccionó: "${selectedOption.title}"`;
                 await this.createSupportTicket(chatId, initialMessage, currentState.clientData);
                 break;
-            // --- INICIO DE MODIFICACIÓN: Añadimos el nuevo tipo de acción ---
             case 'pay_invoice':
                 await this.startInvoicePaymentFlow(chatId, currentState);
                 break;
-            // --- FIN DE MODIFICACIÓN ---
             default:
                 console.error(chalk.red(`Tipo de acción desconocida: ${selectedOption.actionType}`));
                 await this.client.sendMessage(chatId, "Hubo un problema al procesar tu selección.");
@@ -365,7 +359,6 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN: Nuevas funciones para el flujo de pago ---
     async startInvoicePaymentFlow(chatId, currentState) {
         const dni = currentState.clientData?.cedula;
         if (!dni) {
@@ -376,6 +369,10 @@ class WhatsAppClient extends EventEmitter {
         await this.client.sendMessage(chatId, "Buscando tus facturas pendientes, por favor aguarda un momento... ⏳");
 
         const result = await llamarScriptExterno('scripts/factura_mkw.js', ['listar', dni]);
+        
+        // --- INICIO DE MODIFICACIÓN: Punto de Control ---
+        console.log('[PUNTO DE CONTROL WC] Respuesta recibida del script:', JSON.stringify(result, null, 2));
+        // --- FIN DE MODIFICACIÓN ---
 
         if (!result.success || !result.facturas || result.facturas.length === 0) {
             await this.client.sendMessage(chatId, "¡Buenas noticias! No encontré facturas pendientes de pago a tu nombre. 😊");
@@ -428,7 +425,6 @@ class WhatsAppClient extends EventEmitter {
 
         await redisClient.del(`state:${chatId}`);
     }
-    // --- FIN DE MODIFICACIÓN ---
 
     async handleNewProspect(chatId, userMessage, currentState) {
         if (currentState.awaiting_sales_confirmation) {
@@ -675,4 +671,3 @@ class WhatsAppClient extends EventEmitter {
 }
 
 module.exports = new WhatsAppClient();
-

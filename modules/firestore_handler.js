@@ -4,7 +4,8 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const chalk = require('chalk');
 
 try {
-    const serviceAccount = require('../firebase-credentials.json');
+    // Apuntamos al archivo de credenciales unificado.
+    const serviceAccount = require('../google-credentials.json');
 
     if (!getApps().length) {
         initializeApp({
@@ -306,9 +307,7 @@ try {
             const doc = await docRef.get();
             
             const defaultConfig = {
-                // --- INICIO DE MODIFICACIÓN ---
-                respuestasPorVozActivas: true, // Valor por defecto
-                // --- FIN DE MODIFICACIÓN ---
+                respuestasPorVozActivas: true,
                 promptAnalisisSentimiento: `Analiza el sentimiento del siguiente mensaje de un cliente a su proveedor de internet. Responde únicamente con una de estas cuatro palabras: "enojado", "frustrado", "neutro", "contento". Mensaje: "{userMessage}"`,
                 promptIntencionGeneral: `Analiza el siguiente mensaje de un cliente a su proveedor de internet. Tu tarea es clasificar la intención principal del mensaje en una de tres categorías. Responde únicamente con una de estas tres palabras: "soporte", "ventas", "pregunta_general".
 
@@ -420,7 +419,7 @@ Mensaje del cliente: "{userMessage}"`,
     };
 
 } catch (error) {
-    console.error(chalk.red.bold('❌ Error fatal de Firebase Admin:'), chalk.red('No se pudo inicializar. ¿Está el archivo firebase-credentials.json en la raíz?'));
+    console.error(chalk.red.bold('❌ Error fatal de Firebase Admin:'), chalk.red('No se pudo inicializar. ¿Está el archivo google-credentials.json en la raíz?'));
     console.error(error);
     process.exit(1);
 }

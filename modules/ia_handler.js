@@ -3,20 +3,19 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAuth } = require('google-auth-library');
 const chalk = require('chalk');
 const firestoreHandler = require('./firestore_handler');
-// --- INICIO DE MODIFICACIÓN (TTS) ---
 const textToSpeech = require('@google-cloud/text-to-speech');
-// --- FIN DE MODIFICACIÓN (TTS) ---
 
 const auth = new GoogleAuth({
-    keyFilename: './firebase-credentials.json',
+    // --- MODIFICACIÓN ---
+    // Apuntamos al archivo de credenciales unificado.
+    keyFilename: './google-credentials.json',
+    // --- FIN DE MODIFICACIÓN ---
     scopes: ['https://www.googleapis.com/auth/cloud-platform'],
 });
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, auth);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-// --- INICIO DE MODIFICACIÓN (TTS) ---
 const ttsClient = new textToSpeech.TextToSpeechClient({ auth });
-// --- FIN DE MODIFICACIÓN (TTS) ---
 
 
 async function transcribirAudio(mimeType, audioBase64) {
@@ -40,7 +39,6 @@ async function transcribirAudio(mimeType, audioBase64) {
     }
 }
 
-// --- INICIO DE MODIFICACIÓN (TTS) ---
 /**
  * Convierte un texto a un archivo de audio usando Google Text-to-Speech.
  * @param {string} text - El texto a convertir.
@@ -69,7 +67,6 @@ async function sintetizarVoz(text) {
         return null;
     }
 }
-// --- FIN DE MODIFICACIÓN (TTS) ---
 
 
 async function buildKnowledgeBase() {
@@ -281,5 +278,5 @@ module.exports = {
     analizarSentimiento,
     answerSupportQuestion,
     transcribirAudio,
-    sintetizarVoz, // <-- Exportamos la nueva función
+    sintetizarVoz,
 };

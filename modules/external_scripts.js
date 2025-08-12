@@ -30,14 +30,17 @@ async function llamarScriptExterno(scriptPath, argsArray = [], inputData = null)
         
         proceso.on('close', (code) => {
             if (stderrData.trim() !== "") {
-                console.info(`[${new Date().toLocaleString()}] Stderr de ${path.basename(scriptPath)}: ${stderrData.substring(0, 500)}...`);
+                // --- INICIO DE MODIFICACIÓN ---
+                // Se elimina el límite .substring(0, 500) para mostrar el log completo.
+                console.info(`[${new Date().toLocaleString()}] Stderr de ${path.basename(scriptPath)}: ${stderrData}`);
+                // --- FIN DE MODIFICACIÓN ---
             }
             if (code === 0) {
                 try {
                     const parsedOutput = JSON.parse(stdoutData);
                     resolve(parsedOutput);
                 } catch (parseError) {
-                    resolve({ success: false, message: `Respuesta inesperada de ${path.basename(scriptPath)}: no es JSON. Recibido: ${stdoutData.substring(0,100)}...` });
+                    resolve({ success: false, message: `Respuesta inesperada de ${path.basename(scriptPath)}: no es JSON. Recibido: ${stdoutData.substring(0,100000)}...` });
                 }
             } else {
                 resolve({ success: false, message: `Script ${path.basename(scriptPath)} terminó con error código ${code}.` });
@@ -56,3 +59,4 @@ async function llamarScriptExterno(scriptPath, argsArray = [], inputData = null)
 }
 
 module.exports = { llamarScriptExterno };
+
