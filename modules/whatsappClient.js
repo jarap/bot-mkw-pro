@@ -1,5 +1,5 @@
 // modules/whatsappClient.js
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const { EventEmitter } = require('events');
 const chalk = require('chalk');
 const chrono = require('chrono-node');
@@ -90,14 +90,64 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
+    // --- INICIO DE MODIFICACIÓN (TTS) ---
+    /**
+     * Envía una respuesta de la IA, intentando primero como audio y, si falla, como texto.
+     * @param {string} chatId - El ID del chat del cliente.
+     * @param {string} textResponse - La respuesta de texto generada por la IA.
+     */
+    async sendAiResponse(chatId, textResponse) {
+        const audioBase64 = await iaHandler.sintetizarVoz(textResponse);
+        if (audioBase64) {
+            try {
+                const audioMedia = new MessageMedia('audio/ogg; codecs=opus', audioBase64, 'voice_note.ogg');
+                await this.client.sendMessage(chatId, audioMedia, { sendAudioAsVoice: true });
+            } catch (e) {
+                console.error(chalk.red('❌ Error al enviar el audio como nota de voz:'), e);
+                console.log(chalk.yellow('   -> Fallback: Enviando respuesta como texto.'));
+                await this.client.sendMessage(chatId, textResponse);
+            }
+        } else {
+            console.log(chalk.yellow('   -> Fallback: Enviando respuesta como texto porque la síntesis falló.'));
+            await this.client.sendMessage(chatId, textResponse);
+        }
+    }
+    // --- FIN DE MODIFICACIÓN (TTS) ---
+
     async handleClientMessage(message) {
         const chatId = message.from;
-        const userMessage = message.body.trim();
-        console.log(chalk.blue(`📥 Mensaje de cliente ${chatId}:`) + ` ${userMessage}`);
+        let userMessage = '';
+
+        if (message.hasMedia && (message.type === 'audio' || message.type === 'ptt')) {
+            try {
+                const media = await message.downloadMedia();
+                if (media && media.data) {
+                    const transcribedText = await iaHandler.transcribirAudio(media.mimetype, media.data);
+                    
+                    if (transcribedText && !transcribedText.includes("[Error")) {
+                        userMessage = transcribedText;
+                    } else {
+                        await this.client.sendMessage(chatId, "Lo siento, no pude entender tu mensaje de voz. ¿Podrías intentarlo de nuevo o escribir tu consulta?");
+                    }
+                }
+            } catch (error) {
+                console.error(chalk.red.bold('❌ ERROR CRÍTICO durante el procesamiento de audio:'), error);
+                await this.client.sendMessage(chatId, "Hubo un problema técnico al procesar tu audio. Por favor, intenta escribir tu consulta.");
+            }
+        } else if (message.body && typeof message.body === 'string') {
+            userMessage = message.body.trim();
+        }
+        
+        if (!userMessage) {
+            return;
+        }
+        
+        console.log(chalk.blue(`📥 Mensaje (procesado) de ${chatId}:`) + ` ${userMessage}`);
 
         const activeSession = await redisClient.get(`session_client:${chatId}`);
         if (activeSession) {
-            await this.relayToAgent(activeSession, message);
+            const messageToRelay = { ...message, body: userMessage };
+            await this.relayToAgent(activeSession, messageToRelay);
             return;
         }
 
@@ -149,7 +199,7 @@ class WhatsAppClient extends EventEmitter {
                 } else {
                     currentState = { isClient: false, chatHistory: [], prospectData: { name: userMessage } };
                     currentState.chatHistory.push({ role: 'user', parts: [{ text: "Hola" }] });
-                    await this.client.sendMessage(chatId, `¡Un gusto, ${userMessage}! 😊 ¿En qué te puedo ayudar hoy?`);
+                    await this.sendAiResponse(chatId, `¡Un gusto, ${userMessage}! 😊 ¿En qué te puedo ayudar hoy?`);
                     await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                 }
                 break;
@@ -170,7 +220,6 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
-    // --- INICIO DE LA MODIFICACIÓN ---
     async handleRegisteredClient(chatId, userMessage, currentState) {
         const isNumericOption = /^\d+$/.test(userMessage);
         const currentOptions = currentState.currentOptions || [];
@@ -178,11 +227,10 @@ class WhatsAppClient extends EventEmitter {
         if (isNumericOption) {
             const selectedNumber = parseInt(userMessage, 10);
     
-            // Comprobación especial para la opción "Volver"
             if (selectedNumber === 0 && currentState.currentParentId !== 'root') {
                 console.log(chalk.green(`   -> Usuario seleccionó la opción: "Volver al Menú Principal"`));
                 await this.sendMenu(chatId, 'root', currentState);
-                return; // Detenemos la ejecución para no procesar más
+                return;
             }
     
             const selectedOption = currentOptions.find(opt => opt.order === selectedNumber);
@@ -195,17 +243,18 @@ class WhatsAppClient extends EventEmitter {
                 await this.sendMenu(chatId, currentState.currentParentId, currentState);
             }
         } else {
-            // La lógica para manejar texto libre (IA, etc.) no cambia
             const chatHistory = currentState.chatHistory || [];
             chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
             const faqResponse = await iaHandler.answerSupportQuestion(chatHistory);
             
             if (faqResponse.includes("[NO_ANSWER]")) {
                 const apologyMessage = faqResponse.replace("[NO_ANSWER]", "").trim();
-                if (apologyMessage) await this.client.sendMessage(chatId, apologyMessage);
+                if (apologyMessage) {
+                    await this.sendAiResponse(chatId, apologyMessage);
+                }
                 await this.createSupportTicket(chatId, userMessage, currentState.clientData);
             } else {
-                await this.client.sendMessage(chatId, faqResponse);
+                await this.sendAiResponse(chatId, faqResponse);
                 currentState.chatHistory = chatHistory;
                 currentState.chatHistory.push({ role: 'model', parts: [{ text: faqResponse }] });
                 await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
@@ -235,12 +284,10 @@ class WhatsAppClient extends EventEmitter {
             options = await firestoreHandler.getMenuItems(parentId);
         }
     
-        // Construimos el mensaje con las opciones de la base de datos
         options.forEach((option) => {
             menuMessage += `*${option.order}* - ${option.title}\n`;
         });
     
-        // Si no estamos en el menú principal, añadimos la opción de volver
         if (parentId !== 'root') {
             menuMessage += `*0* - Volver al Menú Principal\n`;
         }
@@ -250,11 +297,10 @@ class WhatsAppClient extends EventEmitter {
         await this.client.sendMessage(chatId, menuMessage);
     
         currentState.currentParentId = parentId;
-        currentState.currentOptions = options; // Guardamos solo las opciones reales, no la de "volver"
+        currentState.currentOptions = options;
         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
         console.log(chalk.magenta(`   -> Menú para padre '${parentId}' enviado y estado actualizado.`));
     }
-    // --- FIN DE LA MODIFICACIÓN ---
 
     async executeMenuAction(chatId, selectedOption, currentState) {
         switch (selectedOption.actionType) {
@@ -312,7 +358,7 @@ class WhatsAppClient extends EventEmitter {
 
         chatHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
         currentState.chatHistory = chatHistory;
-        await this.client.sendMessage(chatId, aiResponse);
+        await this.sendAiResponse(chatId, aiResponse);
         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
     }
 

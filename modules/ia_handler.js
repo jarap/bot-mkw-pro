@@ -2,7 +2,10 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleAuth } = require('google-auth-library');
 const chalk = require('chalk');
-const firestoreHandler = require('./firestore_handler'); // Modificado para llamar al módulo completo
+const firestoreHandler = require('./firestore_handler');
+// --- INICIO DE MODIFICACIÓN (TTS) ---
+const textToSpeech = require('@google-cloud/text-to-speech');
+// --- FIN DE MODIFICACIÓN (TTS) ---
 
 const auth = new GoogleAuth({
     keyFilename: './firebase-credentials.json',
@@ -11,11 +14,67 @@ const auth = new GoogleAuth({
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, auth);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+// --- INICIO DE MODIFICACIÓN (TTS) ---
+const ttsClient = new textToSpeech.TextToSpeechClient({ auth });
+// --- FIN DE MODIFICACIÓN (TTS) ---
+
+
+async function transcribirAudio(mimeType, audioBase64) {
+    console.log(chalk.cyan('   -> Transcribiendo audio con Gemini...'));
+    try {
+        const audioPart = {
+            inlineData: {
+                mimeType,
+                data: audioBase64,
+            },
+        };
+
+        const result = await model.generateContent(["Transcribe este audio en español:", audioPart]);
+        const response = await result.response;
+        const text = response.text();
+        console.log(chalk.green('   -> Transcripción exitosa.'));
+        return text;
+    } catch (error) {
+        console.error(chalk.red('❌ Error al transcribir audio con Gemini:'), error);
+        return "[Error en la transcripción]";
+    }
+}
+
+// --- INICIO DE MODIFICACIÓN (TTS) ---
+/**
+ * Convierte un texto a un archivo de audio usando Google Text-to-Speech.
+ * @param {string} text - El texto a convertir.
+ * @returns {Promise<string|null>} El audio codificado en base64, o null si falla.
+ */
+async function sintetizarVoz(text) {
+    console.log(chalk.cyan('   -> Sintetizando voz con Google TTS...'));
+    try {
+        const request = {
+            input: { text: text },
+            voice: {
+                languageCode: 'es-US',
+                name: 'es-US-Wavenet-A', // Voz neuronal de alta calidad
+            },
+            audioConfig: {
+                audioEncoding: 'OGG_OPUS', // Formato compatible con WhatsApp
+            },
+        };
+
+        const [response] = await ttsClient.synthesizeSpeech(request);
+        const audioBase64 = response.audioContent.toString('base64');
+        console.log(chalk.green('   -> Síntesis de voz exitosa.'));
+        return audioBase64;
+    } catch (error) {
+        console.error(chalk.red('❌ Error al sintetizar voz:'), error);
+        return null;
+    }
+}
+// --- FIN DE MODIFICACIÓN (TTS) ---
+
 
 async function buildKnowledgeBase() {
     console.log(chalk.cyan('   -> Construyendo base de conocimiento desde Firestore...'));
     
-    // Usamos el handler importado para acceder a las funciones
     const ventasConfigSnap = await firestoreHandler.db.collection('configuracion').doc('ventas').get();
     const ventasConfig = ventasConfigSnap.exists ? ventasConfigSnap.data() : {};
 
@@ -132,7 +191,6 @@ async function analizarConfirmacion(userMessage) {
     }
 }
 
-// --- INICIO DE MODIFICACIÓN ---
 async function analizarIntencionGeneral(userMessage) {
     try {
         const configResult = await firestoreHandler.getSoporteConfig();
@@ -193,7 +251,6 @@ async function answerSupportQuestion(chatHistory) {
         const configResult = await firestoreHandler.getSoporteConfig();
         let systemPrompt = configResult.data.promptRespuestaSoporte;
 
-        // Reemplazamos los placeholders en el prompt con la información real
         systemPrompt = systemPrompt
             .replace('{knowledgeString}', knowledgeString)
             .replace('{chatHistory}', JSON.stringify(modelHistory))
@@ -207,7 +264,6 @@ async function answerSupportQuestion(chatHistory) {
             ]
         });
 
-        // Enviamos el prompt completo como el primer mensaje del usuario en esta interacción
         const result = await chat.sendMessage(systemPrompt);
         const response = await result.response;
         return response.text().trim();
@@ -217,7 +273,6 @@ async function answerSupportQuestion(chatHistory) {
         return "Tuvimos un problema al procesar tu consulta. Un agente la revisará a la brevedad.";
     }
 }
-// --- FIN DE MODIFICACIÓN ---
 
 module.exports = {
     handleSalesConversation,
@@ -225,4 +280,6 @@ module.exports = {
     analizarIntencionGeneral,
     analizarSentimiento,
     answerSupportQuestion,
+    transcribirAudio,
+    sintetizarVoz, // <-- Exportamos la nueva función
 };
