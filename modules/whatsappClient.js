@@ -3,6 +3,10 @@ const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const { EventEmitter } = require('events');
 const chalk = require('chalk');
 const chrono = require('chrono-node');
+// --- INICIO DE MODIFICACIÓN: Añadimos las dependencias necesarias ---
+const qrcode = require('qrcode');
+const { llamarScriptExterno } = require('./external_scripts');
+// --- FIN DE MODIFICACIÓN ---
 
 const { getClientDetails } = require('./mikrowispClient');
 const calendarHandler = require('./calendar_handler');
@@ -90,22 +94,14 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
-    /**
-     * Envía una respuesta de la IA, respetando la configuración de respuesta por voz.
-     * @param {string} chatId - El ID del chat del cliente.
-     * @param {string} textResponse - La respuesta de texto generada por la IA.
-     */
     async sendAiResponse(chatId, textResponse) {
-        // --- INICIO DE MODIFICACIÓN ---
         const configResult = await firestoreHandler.getSoporteConfig();
         const voiceResponsesEnabled = configResult.success && configResult.data.respuestasPorVozActivas;
 
         if (!voiceResponsesEnabled) {
-            // Si las respuestas por voz están desactivadas, envía texto y termina.
             await this.client.sendMessage(chatId, textResponse);
             return;
         }
-        // --- FIN DE MODIFICACIÓN ---
 
         const audioBase64 = await iaHandler.sintetizarVoz(textResponse);
         if (audioBase64) {
@@ -233,6 +229,38 @@ class WhatsAppClient extends EventEmitter {
         const isNumericOption = /^\d+$/.test(userMessage);
         const currentOptions = currentState.currentOptions || [];
     
+        // --- INICIO DE MODIFICACIÓN: Flujo de pago de facturas ---
+        if (currentState.step === 'awaiting_invoice_selection') {
+            if (isNumericOption) {
+                const selectedIndex = parseInt(userMessage, 10) - 1;
+                const pendingInvoices = currentState.pendingInvoices || [];
+                if (selectedIndex >= 0 && selectedIndex < pendingInvoices.length) {
+                    const selectedInvoice = pendingInvoices[selectedIndex];
+                    currentState.selectedInvoice = selectedInvoice;
+                    currentState.step = 'awaiting_qr_confirmation';
+                    await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
+                    await this.client.sendMessage(chatId, `Has seleccionado la factura *#${selectedInvoice.id_factura}* por un total de *${selectedInvoice.total_formateado}*.\n\n¿Deseas generar el código QR de Mercado Pago para abonarla?\n\nResponde *SI* o *NO*.`);
+                } else {
+                    await this.client.sendMessage(chatId, "⚠️ Opción no válida. Por favor, elige uno de los números de la lista de facturas.");
+                }
+            } else {
+                await this.client.sendMessage(chatId, "Por favor, responde con el número de la factura que quieres pagar.");
+            }
+            return;
+        }
+
+        if (currentState.step === 'awaiting_qr_confirmation') {
+            const confirmation = await iaHandler.analizarConfirmacion(userMessage);
+            if (confirmation === 'SI') {
+                await this.generateAndSendQr(chatId, currentState);
+            } else {
+                await this.client.sendMessage(chatId, "Entendido. Si necesitas algo más, no dudes en volver a escribir.");
+                await redisClient.del(`state:${chatId}`);
+            }
+            return;
+        }
+        // --- FIN DE MODIFICACIÓN ---
+
         if (isNumericOption) {
             const selectedNumber = parseInt(userMessage, 10);
     
@@ -325,12 +353,82 @@ class WhatsAppClient extends EventEmitter {
                 const initialMessage = `Cliente seleccionó: "${selectedOption.title}"`;
                 await this.createSupportTicket(chatId, initialMessage, currentState.clientData);
                 break;
+            // --- INICIO DE MODIFICACIÓN: Añadimos el nuevo tipo de acción ---
+            case 'pay_invoice':
+                await this.startInvoicePaymentFlow(chatId, currentState);
+                break;
+            // --- FIN DE MODIFICACIÓN ---
             default:
                 console.error(chalk.red(`Tipo de acción desconocida: ${selectedOption.actionType}`));
                 await this.client.sendMessage(chatId, "Hubo un problema al procesar tu selección.");
                 break;
         }
     }
+
+    // --- INICIO DE MODIFICACIÓN: Nuevas funciones para el flujo de pago ---
+    async startInvoicePaymentFlow(chatId, currentState) {
+        const dni = currentState.clientData?.cedula;
+        if (!dni) {
+            await this.client.sendMessage(chatId, "No pude encontrar tu DNI para buscar las facturas. Por favor, contacta a soporte.");
+            return;
+        }
+
+        await this.client.sendMessage(chatId, "Buscando tus facturas pendientes, por favor aguarda un momento... ⏳");
+
+        const result = await llamarScriptExterno('scripts/factura_mkw.js', ['listar', dni]);
+
+        if (!result.success || !result.facturas || result.facturas.length === 0) {
+            await this.client.sendMessage(chatId, "¡Buenas noticias! No encontré facturas pendientes de pago a tu nombre. 😊");
+            await redisClient.del(`state:${chatId}`);
+            return;
+        }
+
+        let invoiceMessage = "He encontrado las siguientes facturas pendientes:\n\n";
+        result.facturas.forEach((factura, index) => {
+            const vencimiento = new Date(factura.fecha_vencimiento).toLocaleDateString('es-AR');
+            invoiceMessage += `*${index + 1}* - Factura *#${factura.id_factura}*\n      Vence: ${vencimiento}\n      Total: *${factura.total_formateado}*\n\n`;
+        });
+        invoiceMessage += "Por favor, responde con el *número* de la factura que deseas abonar.";
+
+        currentState.step = 'awaiting_invoice_selection';
+        currentState.pendingInvoices = result.facturas;
+        await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
+
+        await this.client.sendMessage(chatId, invoiceMessage);
+    }
+
+    async generateAndSendQr(chatId, currentState) {
+        const invoice = currentState.selectedInvoice;
+        if (!invoice) {
+            await this.client.sendMessage(chatId, "Hubo un error, no tengo una factura seleccionada. Empecemos de nuevo.");
+            await redisClient.del(`state:${chatId}`);
+            return;
+        }
+        
+        await this.client.sendMessage(chatId, "¡Perfecto! Generando tu código QR, un momento por favor... ⚙️");
+
+        const amount = parseFloat(String(invoice.total_formateado).replace(/[^0-9,-]+/g, "").replace(",", "."));
+        const title = `Factura #${invoice.id_factura}`;
+        const description = `Pago de servicio de Internet`;
+
+        const result = await llamarScriptExterno('scripts/mercadopago_qr_mkw.js', [amount, title, invoice.id_factura, description]);
+
+        if (result.success && result.qr_data_string) {
+            try {
+                const qrImage = await qrcode.toDataURL(result.qr_data_string);
+                const media = new MessageMedia('image/png', qrImage.split("base64,")[1], 'qr-pago.png');
+                await this.client.sendMessage(chatId, media, { caption: '¡Listo! Aquí tienes tu código QR para abonar. Podés escanearlo desde la app de Mercado Pago o cualquier billetera virtual. ¡Gracias!' });
+            } catch (qrError) {
+                console.error(chalk.red('❌ Error generando la imagen QR:'), qrError);
+                await this.client.sendMessage(chatId, "No pude generar la imagen del código QR. Por favor, intenta de nuevo más tarde.");
+            }
+        } else {
+            await this.client.sendMessage(chatId, `Lo siento, no pude generar el código de pago en este momento. El error fue: ${result.message || 'Desconocido'}`);
+        }
+
+        await redisClient.del(`state:${chatId}`);
+    }
+    // --- FIN DE MODIFICACIÓN ---
 
     async handleNewProspect(chatId, userMessage, currentState) {
         if (currentState.awaiting_sales_confirmation) {
@@ -577,3 +675,4 @@ class WhatsAppClient extends EventEmitter {
 }
 
 module.exports = new WhatsAppClient();
+

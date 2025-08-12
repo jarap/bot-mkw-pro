@@ -75,7 +75,7 @@ export function renderMenuEditor(container, allItems) {
  * @param {string} parentId - El ID del padre del item que se está creando/editando.
  */
 export function renderMenuItemModal(formFieldsEl, itemData = {}, parentId) {
-    const actionTypes = ['submenu', 'reply', 'create_ticket'];
+    const actionTypes = ['submenu', 'reply', 'create_ticket','pay_invoice'];
 
     formFieldsEl.innerHTML = `
         <input type="hidden" name="parent" value="${parentId}">
