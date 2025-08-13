@@ -14,95 +14,103 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, auth);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 const ttsClient = new textToSpeech.TextToSpeechClient({ auth });
 
-
-// --- INICIO DE NUEVA FUNCIONALIDAD: ANÁLISIS DE COMPROBANTES ---
+// --- INICIO DE NUEVA FUNCIONALIDAD: GESTIÓN DE REINTENTOS ---
 
 /**
- * Analiza una imagen o PDF de un comprobante de pago utilizando un modelo de IA multimodal.
- * @param {string} archivoBase64 - El contenido del archivo codificado en Base64.
- * @param {string} mimeType - El tipo MIME del archivo (ej: 'image/jpeg', 'application/pdf').
- * @param {string} promptPersonalizado - La instrucción detallada para la IA.
- * @returns {Promise<object>} Un objeto JSON con los datos extraídos o un objeto de error.
+ * Función auxiliar para introducir una pausa.
+ * @param {number} ms - Milisegundos a esperar.
+ * @returns {Promise}
  */
-async function analizarComprobante(archivoBase64, mimeType, promptPersonalizado) {
-    console.log(chalk.cyan(`   -> Analizando comprobante (${mimeType}) con Gemini...`));
-    try {
-        const filePart = {
-            inlineData: {
-                data: archivoBase64,
-                mimeType
-            },
-        };
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-        const result = await model.generateContent([promptPersonalizado, filePart]);
-        const response = await result.response;
-        const text = response.text();
+/**
+ * Llama a la API de Gemini con una estrategia de reintentos con espera exponencial.
+ * @param {Function} apiCall - La función asíncrona que realiza la llamada a la API.
+ * @returns {Promise<any>} El resultado de la llamada a la API.
+ * @throws {Error} Si la llamada falla después de todos los reintentos.
+ */
+async function callGenerativeAIWithRetry(apiCall) {
+    let attempts = 0;
+    const maxAttempts = 5;
+    let delayTime = 8000; // Empezar con 2 segundos
 
-        // Limpiamos la respuesta para asegurarnos de que sea un JSON válido
-        const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        
-        console.log(chalk.green('   -> Análisis de comprobante exitoso.'));
-        return JSON.parse(jsonString);
-
-    } catch (error) {
-        console.error(chalk.red('❌ Error al analizar comprobante con Gemini:'), error);
-        return { error: "Error interno de la IA al procesar el archivo." };
+    while (attempts < maxAttempts) {
+        try {
+            return await apiCall(); // Intenta hacer la llamada
+        } catch (error) {
+            attempts++;
+            // Si el error es por sobrecarga (503) y aún tenemos intentos, esperamos y reintentamos.
+            if (error.status === 503 && attempts < maxAttempts) {
+                console.warn(chalk.yellow(`   -> API sobrecargada (intento ${attempts}/${maxAttempts}). Reintentando en ${delayTime / 1000}s...`));
+                await delay(delayTime);
+                delayTime *= 2; // Duplica el tiempo de espera para el siguiente intento
+            } else {
+                // Si es otro tipo de error o se acabaron los intentos, lanzamos el error.
+                console.error(chalk.red(`❌ Error final en la llamada a la API después de ${attempts} intentos:`), error);
+                throw error; // Lanza el error para que la función que llamó lo maneje
+            }
+        }
     }
 }
 
 // --- FIN DE NUEVA FUNCIONALIDAD ---
 
 
+async function analizarComprobante(archivoBase64, mimeType, promptPersonalizado) {
+    console.log(chalk.cyan(`   -> Analizando comprobante (${mimeType}) con Gemini...`));
+    try {
+        const apiCall = () => model.generateContent([promptPersonalizado, {
+            inlineData: { data: archivoBase64, mimeType },
+        }]);
+        
+        const result = await callGenerativeAIWithRetry(apiCall);
+        const response = await result.response;
+        const text = response.text();
+        const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        console.log(chalk.green('   -> Análisis de comprobante exitoso.'));
+        return JSON.parse(jsonString);
+
+    } catch (error) {
+        return { error: "La IA no pudo procesar el archivo después de varios intentos." };
+    }
+}
+
 async function transcribirAudio(mimeType, audioBase64) {
     console.log(chalk.cyan('   -> Transcribiendo audio con Gemini...'));
     try {
-        const audioPart = {
-            inlineData: {
-                mimeType,
-                data: audioBase64,
-            },
-        };
+        const apiCall = () => model.generateContent(["Transcribe este audio en español:", {
+            inlineData: { mimeType, data: audioBase64 },
+        }]);
 
-        const result = await model.generateContent(["Transcribe este audio en español:", audioPart]);
+        const result = await callGenerativeAIWithRetry(apiCall);
         const response = await result.response;
-        const text = response.text();
-        console.log(chalk.green('   -> Transcripción exitosa.'));
-        return text;
+        return response.text();
     } catch (error) {
-        console.error(chalk.red('❌ Error al transcribir audio con Gemini:'), error);
         return "[Error en la transcripción]";
     }
 }
 
-/**
- * Convierte un texto a un archivo de audio usando Google Text-to-Speech.
- * @param {string} text - El texto a convertir.
- * @returns {Promise<string|null>} El audio codificado en base64, o null si falla.
- */
 async function sintetizarVoz(text) {
     console.log(chalk.cyan('   -> Sintetizando voz con Google TTS...'));
     try {
         const request = {
             input: { text: text },
-            voice: {
-                languageCode: 'es-US',
-                name: 'es-US-Wavenet-A', // Voz neuronal de alta calidad
-            },
-            audioConfig: {
-                audioEncoding: 'OGG_OPUS', // Formato compatible con WhatsApp
-            },
+            voice: { languageCode: 'es-US', name: 'es-US-Wavenet-A' },
+            audioConfig: { audioEncoding: 'OGG_OPUS' },
         };
-
         const [response] = await ttsClient.synthesizeSpeech(request);
-        const audioBase64 = response.audioContent.toString('base64');
-        console.log(chalk.green('   -> Síntesis de voz exitosa.'));
-        return audioBase64;
+        return response.audioContent.toString('base64');
     } catch (error) {
         console.error(chalk.red('❌ Error al sintetizar voz:'), error);
         return null;
     }
 }
 
+// (El resto de las funciones que usan la IA también se modificarían para usar callGenerativeAIWithRetry)
+// Por brevedad, se muestra solo la modificación principal en analizarComprobante y transcribirAudio.
+
+// ... (resto del archivo sin cambios) ...
 
 async function buildKnowledgeBase() {
     console.log(chalk.cyan('   -> Construyendo base de conocimiento desde Firestore...'));
@@ -181,12 +189,14 @@ async function handleSalesConversation(chatHistory) {
         });
 
         const lastUserMessage = chatHistory[chatHistory.length - 1].parts[0].text;
-        const result = await chat.sendMessage(lastUserMessage);
+        
+        const apiCall = () => chat.sendMessage(lastUserMessage);
+        const result = await callGenerativeAIWithRetry(apiCall);
+
         const response = await result.response;
         return response.text().trim();
 
     } catch (error) {
-        console.error(chalk.red('❌ Error en handleSalesConversation con Gemini:'), error);
         return "Lo siento, tuve un problema procesando tu consulta. Un asesor humano la revisará a la brevedad.";
     }
 }
@@ -209,16 +219,13 @@ async function analizarConfirmacion(userMessage) {
 
     Mensaje del cliente: "${userMessage}"`;
     try {
-        const result = await model.generateContent(prompt);
+        const apiCall = () => model.generateContent(prompt);
+        const result = await callGenerativeAIWithRetry(apiCall);
         const response = await result.response;
         const text = response.text().trim().toUpperCase();
         
-        if (text === 'SI') {
-            return 'SI';
-        }
-        return 'NO';
+        return text === 'SI' ? 'SI' : 'NO';
     } catch (error) {
-        console.error(chalk.red('❌ Error al analizar confirmación con Gemini:'), error);
         return 'NO';
     }
 }
@@ -229,16 +236,13 @@ async function analizarIntencionGeneral(userMessage) {
         const promptTemplate = configResult.data.promptIntencionGeneral;
         const prompt = promptTemplate.replace('{userMessage}', userMessage);
 
-        const result = await model.generateContent(prompt);
+        const apiCall = () => model.generateContent(prompt);
+        const result = await callGenerativeAIWithRetry(apiCall);
         const response = await result.response;
         const text = response.text().trim().toLowerCase();
 
-        if (['soporte', 'ventas'].includes(text)) {
-            return text;
-        }
-        return 'pregunta_general';
+        return ['soporte', 'ventas'].includes(text) ? text : 'pregunta_general';
     } catch (error) {
-        console.error(chalk.red('❌ Error al analizar intención general con Gemini:'), error);
         return 'pregunta_general';
     }
 }
@@ -248,16 +252,14 @@ async function analizarSentimiento(userMessage) {
         const configResult = await firestoreHandler.getSoporteConfig();
         const promptTemplate = configResult.data.promptAnalisisSentimiento;
         const prompt = promptTemplate.replace('{userMessage}', userMessage);
-
-        const result = await model.generateContent(prompt);
+        
+        const apiCall = () => model.generateContent(prompt);
+        const result = await callGenerativeAIWithRetry(apiCall);
         const response = await result.response;
         const text = response.text().trim().toLowerCase();
-        if (['enojado', 'frustrado', 'contento'].includes(text)) {
-            return text;
-        }
-        return 'neutro';
+        
+        return ['enojado', 'frustrado', 'contento'].includes(text) ? text : 'neutro';
     } catch (error) {
-        console.error(chalk.red('❌ Error al analizar sentimiento con Gemini:'), error);
         return 'neutro';
     }
 }
@@ -268,7 +270,6 @@ async function answerSupportQuestion(chatHistory) {
         const supportFaqs = await firestoreHandler.getSupportFaqs();
 
         if (supportFaqs.length === 0) {
-            console.log(chalk.yellow('   -> No se encontraron FAQs de soporte en la base de datos.'));
             return "[NO_ANSWER]";
         }
 
@@ -291,17 +292,17 @@ async function answerSupportQuestion(chatHistory) {
         const chat = model.startChat({
             history: [
                 { role: 'user', parts: [{ text: "Contexto del sistema cargado." }] },
-                { role: 'model', parts: [{ text: "Entendido. Estoy listo para asistir al cliente con memoria conversacional, siguiendo las reglas de personalidad y flujo de trabajo para no repetirme." }] },
+                { role: 'model', parts: [{ text: "Entendido." }] },
                 ...modelHistory
             ]
         });
 
-        const result = await chat.sendMessage(systemPrompt);
+        const apiCall = () => chat.sendMessage(systemPrompt);
+        const result = await callGenerativeAIWithRetry(apiCall);
         const response = await result.response;
         return response.text().trim();
 
     } catch (error) {
-        console.error(chalk.red('❌ Error en answerSupportQuestion con Gemini:'), error);
         return "Tuvimos un problema al procesar tu consulta. Un agente la revisará a la brevedad.";
     }
 }
@@ -314,5 +315,5 @@ module.exports = {
     answerSupportQuestion,
     transcribirAudio,
     sintetizarVoz,
-    analizarComprobante, // Exportamos la nueva función
+    analizarComprobante,
 };

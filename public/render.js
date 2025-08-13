@@ -464,10 +464,13 @@ export function renderComprobantes(tableBody, comprobantes) {
     comprobantes.forEach(item => {
         const row = tableBody.insertRow();
         
-        // --- INICIO DE CORRECCIÓN: Formato de Fecha ---
-        // El timestamp de Firestore es un objeto, necesitamos usar la propiedad 'seconds'.
-        const fecha = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString('es-AR') : 'N/A';
-        // --- FIN DE CORRECCIÓN ---
+        // --- INICIO DE CORRECCIÓN FINAL: Formato de Fecha ---
+        // Cuando los datos vienen de Firestore a través de JSON, el timestamp se convierte
+        // en un objeto con propiedades _seconds y _nanoseconds.
+        const fecha = item.timestamp && item.timestamp._seconds 
+            ? new Date(item.timestamp._seconds * 1000).toLocaleString('es-AR') 
+            : 'N/A';
+        // --- FIN DE CORRECCIÓN FINAL ---
 
         const cliente = item.cliente?.nombre || 'Desconocido';
         const monto = item.resultadoIA?.monto ? `$${item.resultadoIA.monto}` : 'N/A';
@@ -482,9 +485,7 @@ export function renderComprobantes(tableBody, comprobantes) {
             fiabilidadHTML = `<span class="status-badge status-rechazado">${fiabilidad}%</span>`;
         }
         
-        // --- INICIO DE CORRECCIÓN: Aplicar clase de estado ---
         const statusClass = (item.estado || 'n/a').toLowerCase().replace(/ /g, '-');
-        // --- FIN DE CORRECCIÓN ---
 
         row.innerHTML = `
             <td>${fecha}</td>
