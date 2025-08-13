@@ -1,0 +1,12 @@
+{
+  "name": "mkw-payment-webhook",
+  "version": "1.0.0",
+  "description": "Webhook para procesar pagos de Mercado Pago y registrarlos en Mikrowisp.",
+  "main": "index.js",
+  "dependencies": {
+    "axios": "^1.6.8"
+  },
+  "engines": {
+    "node": "20"
+  }
+}
