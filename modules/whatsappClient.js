@@ -266,6 +266,25 @@ class WhatsAppClient extends EventEmitter {
             await this.client.sendMessage(chatId, "¡Hola! Ya tenés una solicitud de soporte abierta. Un agente te responderá a la brevedad. 👍");
             return;
         }
+
+        // --- INICIO DE CORRECCIÓN: Flujo de Comprobante No Identificado ---
+        if (currentState && currentState.step === 'awaiting_dni_for_receipt') {
+            const dni = userMessage.replace(/[.,\-\s]/g, '');
+            const clientResult = await getClientDetails(dni);
+
+            if (clientResult.success) {
+                const clientData = clientResult.data;
+                const clientInfo = { id: clientData.id, nombre: clientData.nombre, cedula: clientData.cedula };
+                await firestoreHandler.updateComprobante(currentState.lastReceiptId, { cliente: clientInfo, estado: 'Pendiente' });
+                await this.client.sendMessage(chatId, `¡Gracias, ${clientData.nombre}! Hemos asociado el comprobante a tu cuenta. Un agente lo revisará a la brevedad.`);
+                await redisClient.del(`state:${chatId}`);
+                this.emit('receiptsUpdate');
+            } else {
+                await this.client.sendMessage(chatId, "No pude encontrar una cuenta con ese DNI. Por favor, verifica el número e inténtalo de nuevo. El comprobante será revisado manualmente por un operador.");
+            }
+            return; // Finalizamos el flujo aquí para no iniciar otra conversación.
+        }
+        // --- FIN DE CORRECCIÓN ---
         
         if (!currentState) {
             const phoneNumber = chatId.replace('@c.us', '').slice(-10);
@@ -285,7 +304,6 @@ class WhatsAppClient extends EventEmitter {
             return;
         }
 
-        // --- INICIO DE CORRECCIÓN: Lógica de Identificación ---
         switch (currentState.step) {
             case 'awaiting_identification':
                 const cleanedMessage = userMessage.replace(/[.,\-\s]/g, '');
@@ -334,7 +352,6 @@ class WhatsAppClient extends EventEmitter {
                 }
                 break;
         }
-        // --- FIN DE CORRECCIÓN ---
     }
 
     async handleRegisteredClient(chatId, userMessage, currentState) {
