@@ -48,24 +48,10 @@ class WhatsAppClient extends EventEmitter {
         console.log(chalk.green(`✅ Pool de ${Object.keys(supportGroupPool).length} grupos de soporte inicializado.`));
     }
 
-    async initialize() {
-        // --- INICIO DE CORRECCIÓN ---
-        // Se añade lógica para forzar la desconexión si el cliente ya existe,
-        // garantizando un estado limpio antes de inicializar.
-        if (this.client) {
-            console.warn(chalk.yellow('[DIAGNÓSTICO] Se detectó un cliente existente. Forzando desconexión antes de reiniciar...'));
-            await this.disconnect();
-        }
-        // --- FIN DE CORRECCIÓN ---
+    initialize() {
+        if (this.client || this.status === 'INICIALIZANDO') return;
         
-        if (this.status === 'INICIALIZANDO') {
-            console.warn(chalk.yellow('[DIAGNÓSTICO] La inicialización ya está en progreso. Omitiendo nueva solicitud.'));
-            return;
-        }
-
         this.updateStatus('INICIALIZANDO');
-        
-        console.log(chalk.cyan('[DIAGNÓSTICO] Creando nueva instancia del cliente de WhatsApp...'));
         
         this.client = new Client({
             authStrategy: new LocalAuth({ clientId: "bot_mkw" }),
@@ -82,7 +68,6 @@ class WhatsAppClient extends EventEmitter {
         this.client.on('auth_failure', this.onAuthFailure.bind(this));
         this.client.on('message', this.handleMessage.bind(this));
         
-        console.log(chalk.cyan('[DIAGNÓSTICO] Inicializando cliente... Este proceso puede tardar.'));
         this.client.initialize().catch((err) => {
             console.error(chalk.red('[DIAGNÓSTICO] Fallo catastrófico en client.initialize().'), err);
             this.updateStatus('ERROR');
@@ -90,7 +75,6 @@ class WhatsAppClient extends EventEmitter {
     }
 
     onReady() { 
-        console.log(chalk.green.bold('[DIAGNÓSTICO] Evento "ready" recibido. ¡El bot está conectado!'));
         this.updateStatus('CONECTADO'); 
     }
     onDisconnected() { this.updateStatus('DESCONECTADO'); }
@@ -98,14 +82,9 @@ class WhatsAppClient extends EventEmitter {
     
     async disconnect() {
         if (this.client) {
-            console.log(chalk.yellow('[DIAGNÓSTICO] Iniciando proceso de desconexión...'));
             await this.client.destroy();
-            // --- INICIO DE CORRECCIÓN ---
-            // Se establece explícitamente el cliente a null para asegurar un estado limpio.
             this.client = null;
-            // --- FIN DE CORRECCIÓN ---
             this.updateStatus('DESCONECTADO');
-            console.log(chalk.green('[DIAGNÓSTICO] Cliente de WhatsApp desconectado y limpiado.'));
         }
     }
 
@@ -266,9 +245,7 @@ class WhatsAppClient extends EventEmitter {
             userMessage = message.body.trim();
         }
         
-        if (!userMessage) {
-            return;
-        }
+        if (!userMessage) return;
         
         const activeSession = await redisClient.get(`session_client:${chatId}`);
         if (activeSession) {
@@ -278,23 +255,6 @@ class WhatsAppClient extends EventEmitter {
         }
 
         let currentState = await redisClient.get(`state:${chatId}`);
-
-        if (currentState && currentState.step === 'awaiting_dni_for_receipt') {
-            const dni = userMessage.replace(/[.-]/g, '');
-            const clientResult = await getClientDetails(dni);
-
-            if (clientResult.success) {
-                const clientData = clientResult.data;
-                const clientInfo = { id: clientData.id, nombre: clientData.nombre, cedula: clientData.cedula };
-                await firestoreHandler.updateComprobante(currentState.lastReceiptId, { cliente: clientInfo, estado: 'Pendiente' });
-                await this.client.sendMessage(chatId, `¡Gracias, ${clientData.nombre}! Hemos asociado el comprobante a tu cuenta. Un agente lo revisará a la brevedad.`);
-                await redisClient.del(`state:${chatId}`);
-                this.emit('receiptsUpdate');
-            } else {
-                await this.client.sendMessage(chatId, "No pude encontrar una cuenta con ese DNI. Por favor, verifica el número e inténtalo de nuevo. El comprobante será revisado manually.");
-            }
-            return;
-        }
 
         if (userMessage.toLowerCase() === '!fin') {
             await redisClient.del(`state:${chatId}`);
@@ -325,32 +285,45 @@ class WhatsAppClient extends EventEmitter {
             return;
         }
 
+        // --- INICIO DE CORRECCIÓN: Lógica de Identificación ---
         switch (currentState.step) {
             case 'awaiting_identification':
-                const cleanedMessage = userMessage.replace(/[.-]/g, '');
-                if (/^\d{7,8}$/.test(cleanedMessage) || /^\d{11}$/.test(cleanedMessage)) {
+                const cleanedMessage = userMessage.replace(/[.,\-\s]/g, '');
+                const isNumeric = /^\d+$/.test(cleanedMessage);
+                let isDniOrCuit = isNumeric && [7, 8, 11].includes(cleanedMessage.length);
+
+                if (isDniOrCuit) {
                     const result = await getClientDetails(cleanedMessage);
                     if (result.success) {
                         currentState = { isClient: true, clientData: result.data };
                         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                         await this.sendWelcomeMessage(chatId, result.data, currentState);
                     } else {
-                        await this.client.sendMessage(chatId, "No te encontré en nuestro sistema. ¿Podrías decirme tu nombre para consultar por nuestros servicios?");
-                        currentState = { isClient: false, chatHistory: [], prospectData: {}, step: 'sales_get_name' };
+                        await this.client.sendMessage(chatId, "No te encontré en nuestro sistema con ese DNI/CUIT. Por favor, dime tu nombre para consultar por nuestros servicios.");
+                        currentState.step = 'sales_get_name';
                         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                     }
                 } else {
-                    currentState = { isClient: false, chatHistory: [], prospectData: { name: userMessage } };
-                    currentState.chatHistory.push({ role: 'user', parts: [{ text: "Hola" }] });
+                    currentState.prospectData = { name: userMessage };
+                    currentState.step = 'in_sales_conversation';
+                    currentState.chatHistory = [
+                        { role: 'user', parts: [{ text: `(El cliente se llama ${userMessage})` }] },
+                        { role: 'model', parts: [{ text: `¡Un gusto, ${userMessage}! 😊 ¿En qué te puedo ayudar hoy?` }] }
+                    ];
                     await this.sendAiResponse(chatId, `¡Un gusto, ${userMessage}! 😊 ¿En qué te puedo ayudar hoy?`);
                     await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
                 }
                 break;
 
             case 'sales_get_name':
-                currentState = { isClient: false, chatHistory: [], prospectData: { name: userMessage } };
+                currentState.prospectData = { name: userMessage };
+                currentState.step = 'in_sales_conversation';
+                currentState.chatHistory = [
+                    { role: 'user', parts: [{ text: `(El cliente se llama ${userMessage})` }] },
+                    { role: 'model', parts: [{ text: `¡Un gusto, ${userMessage}! 😊 ¿En qué te puedo ayudar hoy?` }] }
+                ];
+                await this.sendAiResponse(chatId, `¡Un gusto, ${userMessage}! 😊 ¿En qué te puedo ayudar hoy?`);
                 await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
-                await this.handleNewProspect(chatId, userMessage, currentState);
                 break;
 
             default:
@@ -361,6 +334,7 @@ class WhatsAppClient extends EventEmitter {
                 }
                 break;
         }
+        // --- FIN DE CORRECCIÓN ---
     }
 
     async handleRegisteredClient(chatId, userMessage, currentState) {
@@ -701,7 +675,7 @@ class WhatsAppClient extends EventEmitter {
             
             await this.client.sendMessage(clientChatId, '✅ Tu solicitud ha sido enviada. Un agente la tomará en breve.');
             this.emit('sessionsUpdate');
-            await redisClient.set(`state:${clientChatId}`, { awaiting_agent: true }, STATE_TTL_SECONDS);
+            await redisClient.set(`state:${chatId}`, { awaiting_agent: true }, STATE_TTL_SECONDS);
         } catch (error) {
             console.error(chalk.red.bold('❌ ERROR CRÍTICO al crear ticket:'), error);
             await this.client.sendMessage(clientChatId, 'Lo siento, tuvimos un problema interno al crear tu solicitud.');
