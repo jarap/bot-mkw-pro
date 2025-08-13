@@ -34,30 +34,21 @@ export const getSalesData = () => fetchData('/api/salesdata');
 export const getCompanyConfig = () => fetchData('/api/config/empresa');
 export const getVentasConfig = () => fetchData('/api/config/ventas');
 export const getCalendarEvents = () => fetchData('/api/calendar/events');
-export const getAllMenuItems = () => fetchData('/api/menu-items');
 export const getCalendarEventsCount = (days) => fetchData(`/api/calendar/events/count?days=${days}`);
-
-// --- INICIO DE MODIFICACIÓN ---
 export const getSoporteConfig = () => fetchData('/api/config/soporte');
-// --- FIN DE MODIFICACIÓN ---
+export const getAllMenuItems = () => fetchData('/api/menu-items');
 
 
 // --- Funciones de acción (POST, PUT, DELETE) ---
 
-export const connectBot = () => fetchData('/api/connect');
-export const disconnectBot = () => fetchData('/api/disconnect');
-
-export const sendManualMessage = (recipient, message) => fetchData('/api/send-manual', {
+export const connectBot = () => fetchData('/api/actions/connect', { method: 'POST' });
+export const disconnectBot = () => fetchData('/api/actions/disconnect', { method: 'POST' });
+export const sendManualMessage = (recipient, message) => fetchData('/api/actions/send-message', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ recipient, message }),
 });
-
-export const closeTicket = (ticketId) => fetchData('/api/tickets/close', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ticketId }),
-});
+export const closeTicket = (ticketId) => fetchData(`/api/tickets/${ticketId}/close`, { method: 'POST' });
 
 export const saveCompanyConfig = (data) => fetchData('/api/config/empresa', {
     method: 'POST',
@@ -71,13 +62,11 @@ export const saveVentasConfig = (data) => fetchData('/api/config/ventas', {
     body: JSON.stringify(data),
 });
 
-// --- INICIO DE MODIFICACIÓN ---
 export const saveSoporteConfig = (data) => fetchData('/api/config/soporte', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
 });
-// --- FIN DE MODIFICACIÓN ---
 
 export const addItem = (collection, data) => fetchData(`/api/data/${collection}`, {
     method: 'POST',
@@ -110,3 +99,13 @@ export const updateMenuItem = (id, data) => fetchData(`/api/menu-items/${id}`, {
 export const deleteMenuItem = (id) => fetchData(`/api/menu-items/${id}`, {
     method: 'DELETE',
 });
+
+// --- INICIO DE MODIFICACIÓN ---
+export const getPagosConfig = () => fetchData('/api/config/pagos');
+
+export const savePagosConfig = (data) => fetchData('/api/config/pagos', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+});
+// --- FIN DE MODIFICACIÓN ---

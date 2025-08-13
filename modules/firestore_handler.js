@@ -4,7 +4,6 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 const chalk = require('chalk');
 
 try {
-    // Apuntamos al archivo de credenciales unificado.
     const serviceAccount = require('../google-credentials.json');
 
     if (!getApps().length) {
@@ -393,6 +392,32 @@ Mensaje del cliente: "{userMessage}"`,
         }
     }
 
+    // --- INICIO DE MODIFICACIÓN ---
+    async function getPagosConfig() {
+        try {
+            const docRef = configCollection.doc('pagos');
+            const doc = await docRef.get();
+            const defaultConfig = { pagosQrActivos: true };
+            if (!doc.exists) {
+                return { success: true, data: defaultConfig };
+            }
+            return { success: true, data: { ...defaultConfig, ...doc.data() } };
+        } catch (error) {
+            return { success: false, message: 'Error al leer la configuración de pagos.' };
+        }
+    }
+
+    async function updatePagosConfig(data) {
+        try {
+            const docRef = configCollection.doc('pagos');
+            await docRef.set(data, { merge: true });
+            return { success: true };
+        } catch (error) {
+            return { success: false, message: 'Error al guardar la configuración de pagos.' };
+        }
+    }
+    // --- FIN DE MODIFICACIÓN ---
+
     module.exports = {
         db,
         logTicket,
@@ -415,7 +440,9 @@ Mensaje del cliente: "{userMessage}"`,
         addMenuItem,
         updateMenuItem,
         deleteMenuItem,
-        getMenuItemById
+        getMenuItemById,
+        getPagosConfig, // --- INICIO DE MODIFICACIÓN ---
+        updatePagosConfig // --- FIN DE MODIFICACIÓN ---
     };
 
 } catch (error) {

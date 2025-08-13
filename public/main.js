@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
         companyConfig: {},
         ventasConfig: {},
         soporteConfig: {},
+        pagosConfig: {}, // --- INICIO DE MODIFICACIÓN ---
         activeSessions: [],
         menuItems: [] 
     };
@@ -33,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
         companyConfigForm: document.getElementById('company-config-form'),
         ventasConfigForm: document.getElementById('ventas-config-form'),
         soporteConfigForm: document.getElementById('soporte-config-form'),
+        pagosConfigForm: document.getElementById('pagos-config-form'), // --- INICIO DE MODIFICACIÓN ---
         zonasTableBody: document.getElementById('zonas-table-body'),
         salesForm: document.getElementById('sales-form'),
         openTicketsValue: document.getElementById('open-tickets-value'),
@@ -110,6 +112,18 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Fallo al cargar la configuración de soporte.", error);
         }
     }
+
+    // --- INICIO DE MODIFICACIÓN ---
+    async function loadAndRenderPagosConfig() {
+        try {
+            const configData = await api.getPagosConfig();
+            state.pagosConfig = configData;
+            render.renderPagosConfigForm(dom.pagosConfigForm, state.pagosConfig);
+        } catch (error) {
+            console.error("Fallo al cargar la configuración de pagos.", error);
+        }
+    }
+    // --- FIN DE MODIFICACIÓN ---
     
     async function loadAndRenderCalendar() {
         if (!dom.calendarContainer) return;
@@ -219,6 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
             'ajustes-bot-venta': loadAndRenderVentasConfig,
             'ajustes-menu-editor': loadAndRenderMenuEditor,
             'ajustes-bot-soporte-prompts': loadAndRenderSoporteConfig,
+            'ajustes-pagos': loadAndRenderPagosConfig, // --- INICIO DE MODIFICACIÓN ---
             'ajustes-planes': forceReloadSalesData,
             'ajustes-promociones': forceReloadSalesData,
             'ajustes-zonas': forceReloadSalesData,
@@ -388,13 +403,8 @@ document.addEventListener('DOMContentLoaded', () => {
             e.preventDefault();
             const formData = new FormData(dom.soporteConfigForm);
             const newConfigData = Object.fromEntries(formData.entries());
-
-            // --- INICIO DE MODIFICACIÓN ---
-            // FormData solo incluye checkboxes si están marcados.
-            // Nos aseguramos de que el valor sea siempre booleano.
             const voiceToggle = dom.soporteConfigForm.querySelector('#soporte-respuestasPorVozActivas');
             newConfigData.respuestasPorVozActivas = voiceToggle ? voiceToggle.checked : false;
-            // --- FIN DE MODIFICACIÓN ---
 
             try {
                 await api.saveSoporteConfig(newConfigData);
@@ -403,6 +413,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 modals.showCustomAlert('Error', 'No se pudo guardar la configuración de soporte.');
             }
         });
+
+        // --- INICIO DE MODIFICACIÓN ---
+        dom.pagosConfigForm?.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(dom.pagosConfigForm);
+            const newConfigData = {};
+            newConfigData.pagosQrActivos = formData.has('pagosQrActivos');
+
+            try {
+                await api.savePagosConfig(newConfigData);
+                modals.showCustomAlert('Éxito', 'Configuración de pagos guardada.');
+            } catch (error) {
+                modals.showCustomAlert('Error', 'No se pudo guardar la configuración de pagos.');
+            }
+        });
+        // --- FIN DE MODIFICACIÓN ---
 
         dom.companyConfigForm?.addEventListener('change', async (e) => {
             if (e.target.id === 'logo-file-input' && e.target.files[0]) {

@@ -33,178 +33,255 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
     app.use(bodyParser.json());
     const checkAuth = (req, res, next) => req.session.loggedin ? next() : res.redirect('/');
 
-    app.get('/', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'login.html')));
-    app.post('/login', (req, res) => {
-        try {
-            const users = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'users.json')));
-            const { username, password } = req.body;
-            if (users[username] && users[username] === password) {
-                req.session.loggedin = true;
-                req.session.username = username;
-                res.redirect('/panel');
-            } else {
-                res.send('Usuario o Contraseña Incorrecta!');
-            }
-        } catch (error) {
-            res.send('Error al leer el archivo de usuarios.');
+    // --- Rutas de Autenticación y Vistas ---
+    app.get('/', (req, res) => {
+        if (req.session.loggedin) {
+            res.sendFile(path.join(__dirname, '..', 'public', 'mkwap.html'));
+        } else {
+            res.sendFile(path.join(__dirname, '..', 'public', 'login.html'));
         }
     });
-    app.get('/panel', checkAuth, (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'mkwap.html')));
-    app.get('/logout', (req, res) => req.session.destroy(() => res.redirect('/')));
 
-    app.get('/api/status', checkAuth, (req, res) => res.json({ status: whatsappClient.getStatus() }));
-    app.get('/api/connect', checkAuth, (req, res) => { whatsappClient.initialize(); res.json({message: "Initializing..."}); });
-    app.get('/api/disconnect', checkAuth, (req, res) => { whatsappClient.disconnect(); res.json({message: "Disconnecting..."}); });
-    app.post('/api/send-manual', checkAuth, async (req, res) => {
-        const { recipient, message } = req.body;
+    app.post('/login', (req, res) => {
+        const { username, password } = req.body;
+        const users = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'users.json'), 'utf8'));
+        if (users[username] && users[username] === password) {
+            req.session.loggedin = true;
+            req.session.username = username;
+            res.redirect('/');
+        } else {
+            res.send('Usuario o contraseña incorrectos');
+        }
+    });
+
+    app.get('/logout', (req, res) => {
+        req.session.destroy(() => {
+            res.redirect('/');
+        });
+    });
+
+    // --- API Endpoints ---
+
+    // API para obtener datos
+    app.get('/api/tickets', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getAllTickets();
+        if (result.success) {
+            res.json({ success: true, data: result.data });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+    
+    app.get('/api/activesessions', checkAuth, async (req, res) => {
         try {
-            const chatId = `549${recipient.replace(/\D/g, '')}@c.us`;
+            const sessionKeys = await redisClient.keys('session:*');
+            if (sessionKeys.length === 0) {
+                return res.json({ success: true, data: [] });
+            }
+            const sessions = [];
+            for (const key of sessionKeys) {
+                const sessionData = await redisClient.get(key);
+                if (sessionData) {
+                    sessions.push(sessionData);
+                }
+            }
+            res.json({ success: true, data: sessions });
+        } catch (error) {
+            res.status(500).json({ success: false, message: 'Error al obtener sesiones de Redis.' });
+        }
+    });
+
+    app.get('/api/salesdata', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getSalesData();
+        if (result.success) {
+            res.json({ success: true, data: result.data });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+
+    // API para acciones del bot
+    app.post('/api/actions/connect', checkAuth, (req, res) => {
+        whatsappClient.initialize();
+        res.json({ success: true, message: 'Inicializando...' });
+    });
+
+    app.post('/api/actions/disconnect', checkAuth, async (req, res) => {
+        await whatsappClient.disconnect();
+        res.json({ success: true, message: 'Desconectando...' });
+    });
+
+    app.post('/api/actions/send-message', checkAuth, async (req, res) => {
+        const { recipient, message } = req.body;
+        const chatId = `549${recipient}@c.us`;
+        try {
             await whatsappClient.sendMessage(chatId, message);
-            res.json({ success: true, message: 'Mensaje enviado.' });
+            res.json({ success: true });
         } catch (error) {
             res.status(500).json({ success: false, message: error.message });
         }
     });
-    app.post('/api/upload/logo', checkAuth, upload.single('logo'), (req, res) => {
-        if (!req.file) return res.status(400).json({ success: false, message: 'No se ha subido ningún archivo.' });
-        res.json({ success: true, filePath: `/uploads/${req.file.filename}` });
+
+    // API para gestión de tickets
+    app.post('/api/tickets/:id/close', checkAuth, async (req, res) => {
+        try {
+            await firestoreHandler.updateTicket(req.params.id, { Estado: 'Cerrado' });
+            broadcast({ type: 'ticketsChanged' });
+            res.json({ success: true });
+        } catch (error) {
+            res.status(500).json({ success: false, message: 'Error al cerrar el ticket.' });
+        }
     });
-    app.get('/api/tickets', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.getAllTickets();
+
+    // API para CRUD genérico de datos de ventas
+    app.post('/api/data/:collection', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.addItem(req.params.collection, req.body);
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    app.get('/api/calendar/events', checkAuth, async (req, res) => {
-        const result = await calendarHandler.getEvents();
+    app.put('/api/data/:collection/:id', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updateItem(req.params.collection, req.params.id, req.body);
         res.status(result.success ? 200 : 500).json(result);
     });
-    
+
+    app.delete('/api/data/:collection/:id', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.deleteItem(req.params.collection, req.params.id);
+        res.status(result.success ? 200 : 500).json(result);
+    });
+
+    // API para configuración
+    app.get('/api/config/empresa', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getCompanyConfig();
+        if (result.success) {
+            res.json({ success: true, data: result.data });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+
+    app.post('/api/config/empresa', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updateCompanyConfig(req.body);
+        if (result.success) {
+            broadcast({ type: 'companyConfig', data: req.body });
+            res.json({ success: true });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+
+    app.get('/api/config/ventas', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getVentasConfig();
+        if (result.success) {
+            res.json({ success: true, data: result.data });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+
+    app.post('/api/config/ventas', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updateVentasConfig(req.body);
+        if (result.success) {
+            res.json({ success: true });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+
+    app.get('/api/config/soporte', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getSoporteConfig();
+        if (result.success) {
+            res.json({ success: true, data: result.data });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+
+    app.post('/api/config/soporte', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updateSoporteConfig(req.body);
+        if (result.success) {
+            res.json({ success: true });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+
+    // --- INICIO DE MODIFICACIÓN ---
+    app.get('/api/config/pagos', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getPagosConfig();
+        if (result.success) {
+            res.json({ success: true, data: result.data });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+
+    app.post('/api/config/pagos', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updatePagosConfig(req.body);
+        if (result.success) {
+            res.json({ success: true });
+        } else {
+            res.status(500).json({ success: false, message: result.message });
+        }
+    });
+    // --- FIN DE MODIFICACIÓN ---
+
+    // API para subida de logo
+    app.post('/api/upload/logo', checkAuth, upload.single('logo'), (req, res) => {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'No se subió ningún archivo.' });
+        }
+        res.json({ success: true, filePath: `/uploads/${req.file.filename}` });
+    });
+
+    // API para Calendario
+    app.get('/api/calendar/events', checkAuth, async (req, res) => {
+        const result = await calendarHandler.getAllEvents();
+        res.status(result.success ? 200 : 500).json(result);
+    });
+
     app.get('/api/calendar/events/count', checkAuth, async (req, res) => {
         const days = parseInt(req.query.days, 10) || 15;
         const result = await calendarHandler.countUpcomingEvents(days);
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    app.get('/api/salesdata', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.getSalesData();
-        res.status(result.success ? 200 : 500).json(result);
-    });
-    app.post('/api/tickets/close', checkAuth, async (req, res) => {
-        const { ticketId } = req.body;
-        if (!ticketId) return res.status(400).json({ success: false, message: 'Falta el ID del ticket.' });
-        try {
-            await firestoreHandler.updateTicket(ticketId, { 'Estado': 'Cerrado', 'isOpen': false });
-            broadcast({ type: 'ticketsChanged' });
-            broadcastKPIs();
-            res.json({ success: true, message: 'Ticket cerrado correctamente.' });
-        } catch (error) {
-            res.status(500).json({ success: false, message: 'No se pudo cerrar el ticket.' });
-        }
-    });
-    app.get('/api/activesessions', checkAuth, async (req, res) => {
-        try {
-            const sessionKeys = await redisClient.keys('session_client:*');
-            if (sessionKeys.length === 0) return res.json({ success: true, data: [] });
-            const sessions = [];
-            for (const key of sessionKeys) {
-                const sessionData = await redisClient.get(key);
-                if (sessionData) sessions.push(sessionData);
-            }
-            res.json({ success: true, data: sessions });
-        } catch (error) {
-            console.error(chalk.red('❌ Error al obtener sesiones activas de Redis:'), error);
-            res.status(500).json({ success: false, message: 'No se pudo obtener las sesiones activas.' });
-        }
-    });
-    app.get('/api/config/empresa', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.getCompanyConfig();
-        res.status(result.success ? 200 : 500).json(result);
-    });
-    app.post('/api/config/empresa', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.updateCompanyConfig(req.body);
-        res.status(result.success ? 200 : 500).json(result);
-    });
-
-    app.get('/api/config/ventas', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.getVentasConfig();
-        res.status(result.success ? 200 : 500).json(result);
-    });
-    app.post('/api/config/ventas', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.updateVentasConfig(req.body);
-        res.status(result.success ? 200 : 500).json(result);
-    });
-
-    // --- INICIO DE MODIFICACIÓN ---
-    app.get('/api/config/soporte', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.getSoporteConfig();
-        res.status(result.success ? 200 : 500).json(result);
-    });
-
-    app.post('/api/config/soporte', checkAuth, async (req, res) => {
-        const result = await firestoreHandler.updateSoporteConfig(req.body);
-        res.status(result.success ? 200 : 500).json(result);
-    });
-    // --- FIN DE MODIFICACIÓN ---
-
-    app.post('/api/data/:collection', checkAuth, async (req, res) => {
-        const { collection } = req.params;
-        const result = await firestoreHandler.addItem(collection, req.body);
-        res.status(result.success ? 201 : 500).json(result);
-    });
-    app.put('/api/data/:collection/:id', checkAuth, async (req, res) => {
-        const { collection, id } = req.params;
-        const result = await firestoreHandler.updateItem(collection, id, req.body);
-        res.status(result.success ? 200 : 500).json(result);
-    });
-    app.delete('/api/data/:collection/:id', checkAuth, async (req, res) => {
-        const { collection, id } = req.params;
-        const result = await firestoreHandler.deleteItem(collection, id);
-        res.status(result.success ? 200 : 500).json(result);
-    });
-
+    // API para Menús
     app.get('/api/menu-items', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getAllMenuItems();
         res.status(result.success ? 200 : 500).json(result);
     });
 
     app.post('/api/menu-items', checkAuth, async (req, res) => {
-        const itemData = req.body;
-        if (!itemData || !itemData.title || !itemData.parent) {
-            return res.status(400).json({ success: false, message: 'Faltan datos para crear el item.' });
-        }
         try {
-            const result = await firestoreHandler.addMenuItem(itemData);
-            res.status(201).json(result);
-        } catch (error) {
-            res.status(400).json({ success: false, message: error.message });
-        }
-    });
-
-    app.put('/api/menu-items/:id', checkAuth, async (req, res) => {
-        const { id } = req.params;
-        const itemData = req.body;
-        try {
-            const result = await firestoreHandler.updateMenuItem(id, itemData);
+            const result = await firestoreHandler.addMenuItem(req.body);
             res.status(200).json(result);
         } catch (error) {
             res.status(400).json({ success: false, message: error.message });
         }
     });
-
+    
+    app.put('/api/menu-items/:id', checkAuth, async (req, res) => {
+        try {
+            const result = await firestoreHandler.updateMenuItem(req.params.id, req.body);
+            res.status(200).json(result);
+        } catch (error) {
+            res.status(400).json({ success: false, message: error.message });
+        }
+    });
+    
     app.delete('/api/menu-items/:id', checkAuth, async (req, res) => {
-        const { id } = req.params;
-        const result = await firestoreHandler.deleteMenuItem(id);
+        const result = await firestoreHandler.deleteMenuItem(req.params.id);
         res.status(result.success ? 200 : 500).json(result);
     });
 
+    // --- WebSocket Server ---
     const wssClients = new Set();
     wss.on('connection', async (ws) => {
         wssClients.add(ws);
-        console.log('Cliente conectado al panel de control.');
+        console.log('Nuevo cliente del panel conectado.');
 
         try {
-            const currentStatus = whatsappClient.getStatus();
-            ws.send(JSON.stringify({ type: 'status', data: currentStatus }));
+            ws.send(JSON.stringify({ type: 'status', data: whatsappClient.getStatus() }));
         } catch (error) {
             console.error(chalk.red('❌ Error al enviar estado inicial del bot por WebSocket:'), error);
         }

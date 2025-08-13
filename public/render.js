@@ -75,9 +75,7 @@ export function renderMenuEditor(container, allItems) {
  * @param {string} parentId - El ID del padre del item que se está creando/editando.
  */
 export function renderMenuItemModal(formFieldsEl, itemData = {}, parentId) {
-    // --- INICIO DE MODIFICACIÓN ---
     const actionTypes = ['submenu', 'reply', 'create_ticket', 'pay_invoice'];
-    // --- FIN DE MODIFICACIÓN ---
 
     formFieldsEl.innerHTML = `
         <input type="hidden" name="parent" value="${parentId}">
@@ -417,3 +415,25 @@ export function renderSoporteConfigForm(form, config) {
         <button type="submit">Guardar Prompts de Soporte</button>
     `;
 }
+
+// --- INICIO DE MODIFICACIÓN ---
+export function renderPagosConfigForm(form, config) {
+    if (!form) return;
+    
+    const isEnabled = config.pagosQrActivos === true;
+
+    form.innerHTML = `
+        <div class="form-group toggle-group">
+            <div>
+                <label for="pagos-pagosQrActivos">Activar Procesamiento de Pagos por QR</label>
+                <small>Si está inactivo, el bot generará el QR pero los pagos no se registrarán en Mikrowisp.</small>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="pagos-pagosQrActivos" name="pagosQrActivos" ${isEnabled ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+        </div>
+        <button type="submit">Guardar Ajustes de Pagos</button>
+    `;
+}
+// --- FIN DE MODIFICACIÓN ---
