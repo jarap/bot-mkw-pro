@@ -12,11 +12,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let state = {
         tickets: [],
+        receipts: [], // --- INICIO DE NUEVA FUNCIONALIDAD ---
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] }, soporteFaqs: [] },
         companyConfig: {},
         ventasConfig: {},
         soporteConfig: {},
-        pagosConfig: {}, // --- INICIO DE MODIFICACIÓN ---
+        pagosConfig: {},
         activeSessions: [],
         menuItems: [] 
     };
@@ -25,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const dom = {
         ticketsTableBody: document.getElementById('tickets-table-body'),
+        receiptsTableBody: document.getElementById('receipts-table-body'), // --- INICIO DE NUEVA FUNCIONALIDAD ---
         sessionsTableBody: document.getElementById('sessions-table-body'),
         planesTableBody: document.getElementById('planes-table-body'),
         promosTableBody: document.getElementById('promos-table-body'),
@@ -34,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         companyConfigForm: document.getElementById('company-config-form'),
         ventasConfigForm: document.getElementById('ventas-config-form'),
         soporteConfigForm: document.getElementById('soporte-config-form'),
-        pagosConfigForm: document.getElementById('pagos-config-form'), // --- INICIO DE MODIFICACIÓN ---
+        pagosConfigForm: document.getElementById('pagos-config-form'),
         zonasTableBody: document.getElementById('zonas-table-body'),
         salesForm: document.getElementById('sales-form'),
         openTicketsValue: document.getElementById('open-tickets-value'),
@@ -113,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN ---
     async function loadAndRenderPagosConfig() {
         try {
             const configData = await api.getPagosConfig();
@@ -123,7 +124,6 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("Fallo al cargar la configuración de pagos.", error);
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
     
     async function loadAndRenderCalendar() {
         if (!dom.calendarContainer) return;
@@ -153,6 +153,21 @@ document.addEventListener('DOMContentLoaded', () => {
             dom.menuEditorContainer.innerHTML = `<p class="error-message">No se pudo cargar el gestor de menús.</p>`;
         }
     }
+
+    // --- INICIO DE NUEVA FUNCIONALIDAD ---
+    async function loadAndRenderReceipts() {
+        try {
+            const receiptsData = await api.getComprobantes();
+            state.receipts = receiptsData;
+            render.renderComprobantes(dom.receiptsTableBody, state.receipts);
+        } catch (error) {
+            console.error("Fallo en la carga del historial de comprobantes.", error);
+            if (dom.receiptsTableBody) {
+                dom.receiptsTableBody.innerHTML = '<tr><td colspan="6">Error al cargar el historial.</td></tr>';
+            }
+        }
+    }
+    // --- FIN DE NUEVA FUNCIONALIDAD ---
 
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -191,6 +206,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'ticketsChanged':
                     loadInitialData();
                     break;
+                // --- INICIO DE NUEVA FUNCIONALIDAD ---
+                case 'receiptsChanged':
+                    loadAndRenderReceipts();
+                    break;
+                // --- FIN DE NUEVA FUNCIONALIDAD ---
             }
         };
         ws.onclose = () => {
@@ -228,12 +248,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const navigationCallbacks = {
             'history': renderCurrentTickets,
+            'receipt-history': loadAndRenderReceipts, // --- INICIO DE NUEVA FUNCIONALIDAD ---
             'calendar': loadAndRenderCalendar,
             'ajustes-empresa': loadAndRenderCompanyConfig,
             'ajustes-bot-venta': loadAndRenderVentasConfig,
             'ajustes-menu-editor': loadAndRenderMenuEditor,
             'ajustes-bot-soporte-prompts': loadAndRenderSoporteConfig,
-            'ajustes-pagos': loadAndRenderPagosConfig, // --- INICIO DE MODIFICACIÓN ---
+            'ajustes-pagos': loadAndRenderPagosConfig,
             'ajustes-planes': forceReloadSalesData,
             'ajustes-promociones': forceReloadSalesData,
             'ajustes-zonas': forceReloadSalesData,
@@ -252,6 +273,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (ticketData) modals.showTicketModal(ticketData);
                 return;
             }
+
+            // --- INICIO DE NUEVA FUNCIONALIDAD ---
+            const viewReceiptBtn = e.target.closest('.view-receipt-btn');
+            if (viewReceiptBtn) {
+                const receiptId = viewReceiptBtn.dataset.receiptId;
+                const receiptData = state.receipts.find(r => r.id === receiptId);
+                if (receiptData) modals.showReceiptModal(receiptData);
+                return;
+            }
+            // --- FIN DE NUEVA FUNCIONALIDAD ---
 
             const editBtn = e.target.closest('.edit-btn');
             if (editBtn) {
@@ -414,12 +445,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // --- INICIO DE MODIFICACIÓN ---
         dom.pagosConfigForm?.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(dom.pagosConfigForm);
             const newConfigData = {};
             newConfigData.pagosQrActivos = formData.has('pagosQrActivos');
+            // --- INICIO DE NUEVA FUNCIONALIDAD ---
+            newConfigData.umbralFiabilidad = parseInt(formData.get('umbralFiabilidad'), 10) || 95;
+            newConfigData.promptAnalisisComprobante = formData.get('promptAnalisisComprobante');
+            // --- FIN DE NUEVA FUNCIONALIDAD ---
 
             try {
                 await api.savePagosConfig(newConfigData);
@@ -428,7 +462,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 modals.showCustomAlert('Error', 'No se pudo guardar la configuración de pagos.');
             }
         });
-        // --- FIN DE MODIFICACIÓN ---
 
         dom.companyConfigForm?.addEventListener('change', async (e) => {
             if (e.target.id === 'logo-file-input' && e.target.files[0]) {

@@ -65,11 +65,7 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
     // API para obtener datos
     app.get('/api/tickets', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getAllTickets();
-        if (result.success) {
-            res.json({ success: true, data: result.data });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        res.status(result.success ? 200 : 500).json(result);
     });
     
     app.get('/api/activesessions', checkAuth, async (req, res) => {
@@ -93,12 +89,15 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
 
     app.get('/api/salesdata', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getSalesData();
-        if (result.success) {
-            res.json({ success: true, data: result.data });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        res.status(result.success ? 200 : 500).json(result);
     });
+
+    // --- INICIO DE NUEVA FUNCIONALIDAD ---
+    app.get('/api/comprobantes', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.getAllComprobantes();
+        res.status(result.success ? 200 : 500).json(result);
+    });
+    // --- FIN DE NUEVA FUNCIONALIDAD ---
 
     // API para acciones del bot
     app.post('/api/actions/connect', checkAuth, (req, res) => {
@@ -124,14 +123,25 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
 
     // API para gestión de tickets
     app.post('/api/tickets/:id/close', checkAuth, async (req, res) => {
-        try {
-            await firestoreHandler.updateTicket(req.params.id, { Estado: 'Cerrado' });
-            broadcast({ type: 'ticketsChanged' });
-            res.json({ success: true });
-        } catch (error) {
-            res.status(500).json({ success: false, message: 'Error al cerrar el ticket.' });
-        }
+        const result = await firestoreHandler.updateTicket(req.params.id, { Estado: 'Cerrado' });
+        if (result.success) broadcast({ type: 'ticketsChanged' });
+        res.status(result.success ? 200 : 500).json(result);
     });
+
+    // --- INICIO DE NUEVA FUNCIONALIDAD ---
+    app.post('/api/comprobantes/:id/asignar', checkAuth, async (req, res) => {
+        // Aquí iría la lógica para llamar al script que asigna el pago en MikroWisp
+        const result = await firestoreHandler.updateComprobante(req.params.id, { estado: 'Aprobado' });
+        if (result.success) broadcast({ type: 'receiptsChanged' });
+        res.status(result.success ? 200 : 500).json(result);
+    });
+
+    app.post('/api/comprobantes/:id/rechazar', checkAuth, async (req, res) => {
+        const result = await firestoreHandler.updateComprobante(req.params.id, { estado: 'Rechazado' });
+        if (result.success) broadcast({ type: 'receiptsChanged' });
+        res.status(result.success ? 200 : 500).json(result);
+    });
+    // --- FIN DE NUEVA FUNCIONALIDAD ---
 
     // API para CRUD genérico de datos de ventas
     app.post('/api/data/:collection', checkAuth, async (req, res) => {
@@ -152,78 +162,44 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
     // API para configuración
     app.get('/api/config/empresa', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getCompanyConfig();
-        if (result.success) {
-            res.json({ success: true, data: result.data });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        res.status(result.success ? 200 : 500).json(result);
     });
 
     app.post('/api/config/empresa', checkAuth, async (req, res) => {
         const result = await firestoreHandler.updateCompanyConfig(req.body);
-        if (result.success) {
-            broadcast({ type: 'companyConfig', data: req.body });
-            res.json({ success: true });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        if (result.success) broadcast({ type: 'companyConfig', data: req.body });
+        res.status(result.success ? 200 : 500).json(result);
     });
 
     app.get('/api/config/ventas', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getVentasConfig();
-        if (result.success) {
-            res.json({ success: true, data: result.data });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        res.status(result.success ? 200 : 500).json(result);
     });
 
     app.post('/api/config/ventas', checkAuth, async (req, res) => {
         const result = await firestoreHandler.updateVentasConfig(req.body);
-        if (result.success) {
-            res.json({ success: true });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        res.status(result.success ? 200 : 500).json(result);
     });
 
     app.get('/api/config/soporte', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getSoporteConfig();
-        if (result.success) {
-            res.json({ success: true, data: result.data });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        res.status(result.success ? 200 : 500).json(result);
     });
 
     app.post('/api/config/soporte', checkAuth, async (req, res) => {
         const result = await firestoreHandler.updateSoporteConfig(req.body);
-        if (result.success) {
-            res.json({ success: true });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        res.status(result.success ? 200 : 500).json(result);
     });
 
-    // --- INICIO DE MODIFICACIÓN ---
     app.get('/api/config/pagos', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getPagosConfig();
-        if (result.success) {
-            res.json({ success: true, data: result.data });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        res.status(result.success ? 200 : 500).json(result);
     });
 
     app.post('/api/config/pagos', checkAuth, async (req, res) => {
         const result = await firestoreHandler.updatePagosConfig(req.body);
-        if (result.success) {
-            res.json({ success: true });
-        } else {
-            res.status(500).json({ success: false, message: result.message });
-        }
+        res.status(result.success ? 200 : 500).json(result);
     });
-    // --- FIN DE MODIFICACIÓN ---
 
     // API para subida de logo
     app.post('/api/upload/logo', checkAuth, upload.single('logo'), (req, res) => {
@@ -235,7 +211,7 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
 
     // API para Calendario
     app.get('/api/calendar/events', checkAuth, async (req, res) => {
-        const result = await calendarHandler.getAllEvents();
+        const result = await calendarHandler.getEvents();
         res.status(result.success ? 200 : 500).json(result);
     });
 
@@ -320,6 +296,9 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         broadcast({ type: 'sessionsChanged' });
         broadcast({ type: 'ticketsChanged' });
     });
+    // --- INICIO DE NUEVA FUNCIONALIDAD ---
+    whatsappClient.on('receiptsUpdate', () => broadcast({ type: 'receiptsChanged' }));
+    // --- FIN DE NUEVA FUNCIONALIDAD ---
     
     setInterval(broadcastKPIs, 60000);
 

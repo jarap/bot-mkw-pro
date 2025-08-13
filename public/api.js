@@ -37,6 +37,11 @@ export const getCalendarEvents = () => fetchData('/api/calendar/events');
 export const getCalendarEventsCount = (days) => fetchData(`/api/calendar/events/count?days=${days}`);
 export const getSoporteConfig = () => fetchData('/api/config/soporte');
 export const getAllMenuItems = () => fetchData('/api/menu-items');
+export const getPagosConfig = () => fetchData('/api/config/pagos');
+
+// --- INICIO DE NUEVA FUNCIONALIDAD ---
+export const getComprobantes = () => fetchData('/api/comprobantes');
+// --- FIN DE NUEVA FUNCIONALIDAD ---
 
 
 // --- Funciones de acción (POST, PUT, DELETE) ---
@@ -63,6 +68,12 @@ export const saveVentasConfig = (data) => fetchData('/api/config/ventas', {
 });
 
 export const saveSoporteConfig = (data) => fetchData('/api/config/soporte', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+});
+
+export const savePagosConfig = (data) => fetchData('/api/config/pagos', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -100,12 +111,10 @@ export const deleteMenuItem = (id) => fetchData(`/api/menu-items/${id}`, {
     method: 'DELETE',
 });
 
-// --- INICIO DE MODIFICACIÓN ---
-export const getPagosConfig = () => fetchData('/api/config/pagos');
-
-export const savePagosConfig = (data) => fetchData('/api/config/pagos', {
+// --- INICIO DE NUEVA FUNCIONALIDAD ---
+export const asignarPago = (comprobanteId, data) => fetchData(`/api/comprobantes/${comprobanteId}/asignar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
 });
-// --- FIN DE MODIFICACIÓN ---
+// --- FIN DE NUEVA FUNCIONALIDAD ---

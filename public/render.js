@@ -416,24 +416,83 @@ export function renderSoporteConfigForm(form, config) {
     `;
 }
 
-// --- INICIO DE MODIFICACIÓN ---
 export function renderPagosConfigForm(form, config) {
     if (!form) return;
     
-    const isEnabled = config.pagosQrActivos === true;
+    const isQrEnabled = config.pagosQrActivos === true;
 
     form.innerHTML = `
         <div class="form-group toggle-group">
             <div>
-                <label for="pagos-pagosQrActivos">Activar Procesamiento de Pagos por QR</label>
-                <small>Si está inactivo, el bot generará el QR pero los pagos no se registrarán en Mikrowisp.</small>
+                <label for="pagos-pagosQrActivos">Activar Generación de Pagos por QR</label>
+                <small>Permite al bot generar códigos QR cuando un cliente lo solicita.</small>
             </div>
             <label class="toggle-switch">
-                <input type="checkbox" id="pagos-pagosQrActivos" name="pagosQrActivos" ${isEnabled ? 'checked' : ''}>
+                <input type="checkbox" id="pagos-pagosQrActivos" name="pagosQrActivos" ${isQrEnabled ? 'checked' : ''}>
                 <span class="slider"></span>
             </label>
+        </div>
+        <hr style="margin: 1.5rem 0;">
+        <h4 style="margin-bottom: 1rem;">Configuración de Análisis de Comprobantes por IA</h4>
+        <div class="form-group">
+            <label for="pagos-umbralFiabilidad">Umbral de Fiabilidad para Auto-Aprobación (%)</label>
+            <input type="number" id="pagos-umbralFiabilidad" name="umbralFiabilidad" value="${config.umbralFiabilidad || 95}" min="0" max="99" placeholder="Ej: 95">
+            <small>Los comprobantes con una fiabilidad igual o mayor a este valor se marcarán para auto-aprobación.</small>
+        </div>
+        <div class="form-group">
+            <label for="pagos-promptAnalisisComprobante">Prompt para Análisis de Comprobantes</label>
+            <textarea id="pagos-promptAnalisisComprobante" name="promptAnalisisComprobante" rows="15">${config.promptAnalisisComprobante || ''}</textarea>
+            <small>Esta es la instrucción que se le da a la IA para analizar los archivos. Edita con cuidado.</small>
         </div>
         <button type="submit">Guardar Ajustes de Pagos</button>
     `;
 }
-// --- FIN DE MODIFICACIÓN ---
+
+/**
+ * Dibuja las filas de la tabla del historial de comprobantes.
+ * @param {HTMLElement} tableBody - El tbody de la tabla.
+ * @param {Array} comprobantes - La lista de comprobantes.
+ */
+export function renderComprobantes(tableBody, comprobantes) {
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    if (!comprobantes || comprobantes.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="6">No se han recibido comprobantes.</td></tr>';
+        return;
+    }
+
+    comprobantes.forEach(item => {
+        const row = tableBody.insertRow();
+        
+        // --- INICIO DE CORRECCIÓN: Formato de Fecha ---
+        // El timestamp de Firestore es un objeto, necesitamos usar la propiedad 'seconds'.
+        const fecha = item.timestamp ? new Date(item.timestamp.seconds * 1000).toLocaleString('es-AR') : 'N/A';
+        // --- FIN DE CORRECCIÓN ---
+
+        const cliente = item.cliente?.nombre || 'Desconocido';
+        const monto = item.resultadoIA?.monto ? `$${item.resultadoIA.monto}` : 'N/A';
+        
+        const fiabilidad = item.resultadoIA?.confiabilidad_porcentaje || 0;
+        let fiabilidadHTML = '';
+        if (fiabilidad >= 90) {
+            fiabilidadHTML = `<span class="status-badge status-aprobado">${fiabilidad}%</span>`;
+        } else if (fiabilidad >= 70) {
+            fiabilidadHTML = `<span class="status-badge status-pendiente">${fiabilidad}%</span>`;
+        } else {
+            fiabilidadHTML = `<span class="status-badge status-rechazado">${fiabilidad}%</span>`;
+        }
+        
+        // --- INICIO DE CORRECCIÓN: Aplicar clase de estado ---
+        const statusClass = (item.estado || 'n/a').toLowerCase().replace(/ /g, '-');
+        // --- FIN DE CORRECCIÓN ---
+
+        row.innerHTML = `
+            <td>${fecha}</td>
+            <td>${cliente}</td>
+            <td>${monto}</td>
+            <td>${fiabilidadHTML}</td>
+            <td><span class="status-badge status-${statusClass}">${item.estado || 'N/A'}</span></td>
+            <td><button class="action-btn-small view-receipt-btn" data-receipt-id="${item.id}"><i class="fas fa-eye"></i> Ver</button></td>
+        `;
+    });
+}

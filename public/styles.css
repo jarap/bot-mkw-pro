@@ -392,6 +392,12 @@ b {
 .status-pendiente { background: var(--color-warning); }
 .status-en-progreso { background: var(--color-primary); }
 .status-cerrado { background: var(--color-dark-variant); }
+/* --- INICIO DE NUEVOS ESTILOS --- */
+.status-aprobado { background: var(--color-success); }
+.status-auto-aprobado { background: #a8e5d3; color: var(--color-dark); }
+.status-rechazado { background: var(--color-danger); }
+/* --- FIN DE NUEVOS ESTILOS --- */
+
 
 .sentiment-icon {
     display: inline-flex;
@@ -553,6 +559,36 @@ b {
     gap: 1rem;
 }
 
+/* --- INICIO DE NUEVOS ESTILOS: MODAL DE COMPROBANTES --- */
+.modal.modal-lg {
+    max-width: 900px;
+}
+.receipt-modal-body {
+    display: flex;
+    gap: 2rem;
+    max-height: 60vh;
+}
+.receipt-image-container {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid var(--color-light);
+    border-radius: var(--border-radius-2);
+}
+.receipt-image-container img {
+    width: 100%;
+    height: auto;
+}
+.receipt-details-container {
+    flex: 1;
+}
+.receipt-details-container h4 {
+    margin-bottom: 1rem;
+}
+.receipt-detail {
+    margin-bottom: 0.8rem;
+}
+/* --- FIN DE NUEVOS ESTILOS --- */
+
 /* --- Menu Editor --- */
 .menu-tree-container {
     padding-left: 20px;
@@ -614,7 +650,6 @@ b {
     gap: 0.5rem;
 }
 
-/* --- INICIO DE MODIFICACIÓN: Estilos para KPI Filters --- */
 .kpi-filters {
     margin-top: 0.8rem;
     display: flex;
@@ -623,9 +658,9 @@ b {
 .kpi-filter-btn {
     background: rgba(255,255,255,0.2);
     color: white;
-    padding: 0.5rem 1rem; /* Aumento de tamaño */
+    padding: 0.5rem 1rem;
     border-radius: var(--border-radius-1);
-    font-size: 0.75rem; /* Aumento de fuente */
+    font-size: 0.75rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 300ms ease;
@@ -636,11 +671,10 @@ b {
 }
 .kpi-filter-btn.active {
     background: var(--color-white);
-    color: var(--color-warning); /* Color de texto que contrasta con el fondo naranja */
+    color: var(--color-warning);
     font-weight: 700;
     border-color: var(--color-white);
 }
-/* --- FIN DE MODIFICACIÓN --- */
 
 /* --- Estilos para Toggle Switch --- */
 .form-group.toggle-group {
@@ -660,7 +694,7 @@ b {
     display: inline-block;
     width: 60px;
     height: 34px;
-    flex-shrink: 0; /* Evita que el switch se encoja */
+    flex-shrink: 0;
 }
 .toggle-switch input {
     opacity: 0;

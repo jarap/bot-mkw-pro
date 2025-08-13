@@ -4,8 +4,9 @@ const { EventEmitter } = require('events');
 const chalk = require('chalk');
 const chrono = require('chrono-node');
 const qrcode = require('qrcode');
-const { llamarScriptExterno } = require('./external_scripts');
+const { getStorage } = require('firebase-admin/storage');
 
+const { llamarScriptExterno } = require('./external_scripts');
 const { getClientDetails } = require('./mikrowispClient');
 const calendarHandler = require('./calendar_handler');
 const firestoreHandler = require('./firestore_handler');
@@ -15,9 +16,9 @@ const redisClient = require('./redisClient');
 const supportGroupPool = {};
 const TIMEOUT_MS = 15 * 60 * 1000;
 const STATE_TTL_SECONDS = 3600; // 1 hora
-
 const SALES_LEADS_GROUP_ID = process.env.SALES_LEADS_GROUP_ID;
 
+const storage = getStorage();
 
 class WhatsAppClient extends EventEmitter {
     constructor() {
@@ -84,13 +85,106 @@ class WhatsAppClient extends EventEmitter {
 
     async handleMessage(message) {
         if (message.fromMe || message.from === 'status@broadcast' || !this.client) return;
+        
+        console.log(chalk.gray(`[DEBUG] Mensaje recibido de ${message.from}. Tipo: ${message.type}, Mimetype: ${message.mimetype}`));
+
         const chat = await message.getChat();
         if (chat.isGroup) {
             await this.handleGroupMessage(message);
+            return;
+        }
+
+        if (message.type === 'image' || message.type === 'document') {
+            await this.procesarComprobanteRecibido(message);
         } else {
             await this.handleClientMessage(message);
         }
     }
+
+    async procesarComprobanteRecibido(message) {
+        const chatId = message.from;
+        
+        try {
+            const media = await message.downloadMedia();
+            if (!media || !media.data) throw new Error("No se pudo descargar el archivo adjunto.");
+
+            if (!media.mimetype || !(media.mimetype.startsWith('image/') || media.mimetype === 'application/pdf')) {
+                console.log(chalk.yellow(`   -> Archivo de tipo '${media.mimetype}' ignorado. No es un comprobante válido.`));
+                await this.client.sendMessage(chatId, "El archivo que enviaste no parece ser un comprobante (imagen o PDF). Por favor, intenta de nuevo.");
+                return;
+            }
+
+            console.log(chalk.blue(`🧾 Archivo recibido de ${chatId}. Iniciando procesamiento de comprobante...`));
+            await this.client.sendMessage(chatId, "¡Recibimos tu comprobante! 📄 Un momento por favor, lo estoy analizando... 🤖");
+
+            const bucket = storage.bucket();
+            const fileName = `comprobantes/${chatId.replace('@c.us', '')}_${Date.now()}.${media.mimetype.split('/')[1] || 'pdf'}`;
+            const file = bucket.file(fileName);
+            const fileBuffer = Buffer.from(media.data, 'base64');
+
+            await file.save(fileBuffer, {
+                metadata: { contentType: media.mimetype },
+            });
+            
+            const [downloadURL] = await file.getSignedUrl({
+                action: 'read',
+                expires: '03-09-2491'
+            });
+            
+            console.log(chalk.green(`   -> Archivo subido a Storage. URL: ${downloadURL}`));
+
+            const phoneNumber = chatId.replace('@c.us', '').slice(-10);
+            const clientResult = await getClientDetails(phoneNumber);
+            const clientData = clientResult.success ? clientResult.data : null;
+            const clientInfo = clientData ? { id: clientData.id, nombre: clientData.nombre, cedula: clientData.cedula } : { nombre: 'Desconocido', cedula: '' };
+
+            const configResult = await firestoreHandler.getPagosConfig();
+            const prompt = configResult.data.promptAnalisisComprobante;
+            const umbral = configResult.data.umbralFiabilidad;
+            
+            const iaResult = await iaHandler.analizarComprobante(media.data, media.mimetype, prompt);
+            console.log(chalk.yellow('   -> Resultado del análisis de IA:'), iaResult);
+
+            const comprobanteData = {
+                timestamp: new Date(),
+                cliente: clientInfo,
+                remitente: chatId,
+                urlArchivo: downloadURL,
+                resultadoIA: iaResult,
+                estado: 'Pendiente',
+            };
+            
+            const logResult = await firestoreHandler.logComprobante(comprobanteData);
+            if (!logResult.success) {
+                throw new Error("No se pudo registrar el comprobante en la base de datos.");
+            }
+            const newId = logResult.id;
+
+            if (iaResult.error) {
+                await this.client.sendMessage(chatId, `⚠️ No pude analizar el archivo. Motivo: ${iaResult.error}. Un agente lo revisará manualmente.`);
+            } else {
+                const fiabilidad = iaResult.confiabilidad_porcentaje || 0;
+                let responseMsg = `¡Análisis completo! 👍\n\n*Entidad:* ${iaResult.entidad || 'N/A'}\n*Monto:* $${iaResult.monto || 'N/A'}\n*Fecha:* ${iaResult.fecha || 'N/A'}\n\n*Fiabilidad:* ${fiabilidad}%\n\n`;
+                
+                if (fiabilidad >= umbral) {
+                    responseMsg += "La fiabilidad es alta. Intentaremos procesar tu pago automáticamente. Te notificaremos si hay algún problema.";
+                    await firestoreHandler.updateComprobante(newId, { estado: 'Auto-Aprobado' });
+                } else {
+                    responseMsg += "La fiabilidad es baja. Un agente revisará tu comprobante a la brevedad para confirmar el pago.";
+                }
+                await this.client.sendMessage(chatId, responseMsg);
+            }
+            
+            this.emit('receiptsUpdate');
+
+        } catch (error) {
+            console.error(chalk.red.bold('❌ ERROR CRÍTICO durante el procesamiento de comprobante:'), error);
+            await this.client.sendMessage(chatId, "Lo siento, ocurrió un error técnico al procesar tu comprobante. Un agente lo revisará manualmente.");
+        }
+    }
+    
+    // (El resto del archivo permanece exactamente igual)
+    // ... (código existente de sendAiResponse, handleClientMessage, etc.) ...
 
     async sendAiResponse(chatId, textResponse) {
         const configResult = await firestoreHandler.getSoporteConfig();
@@ -370,9 +464,7 @@ class WhatsAppClient extends EventEmitter {
 
         const result = await llamarScriptExterno('scripts/factura_mkw.js', ['listar', dni]);
         
-        // --- INICIO DE MODIFICACIÓN: Punto de Control ---
         console.log('[PUNTO DE CONTROL WC] Respuesta recibida del script:', JSON.stringify(result, null, 2));
-        // --- FIN DE MODIFICACIÓN ---
 
         if (!result.success || !result.facturas || result.facturas.length === 0) {
             await this.client.sendMessage(chatId, "¡Buenas noticias! No encontré facturas pendientes de pago a tu nombre. 😊");
@@ -548,7 +640,7 @@ class WhatsAppClient extends EventEmitter {
                 return;
             }
         } else {
-            await this.relayToClient(session, agentMessage);
+            await this.relayToClient(session, message);
         }
     }
 
@@ -570,7 +662,7 @@ class WhatsAppClient extends EventEmitter {
             
             await this.client.sendMessage(clientChatId, '✅ Tu solicitud ha sido enviada. Un agente la tomará en breve.');
             this.emit('sessionsUpdate');
-            await redisClient.set(`state:${chatId}`, { awaiting_agent: true }, STATE_TTL_SECONDS);
+            await redisClient.set(`state:${clientChatId}`, { awaiting_agent: true }, STATE_TTL_SECONDS);
         } catch (error) {
             console.error(chalk.red.bold('❌ ERROR CRÍTICO al crear ticket:'), error);
             await this.client.sendMessage(clientChatId, 'Lo siento, tuvimos un problema interno al crear tu solicitud.');

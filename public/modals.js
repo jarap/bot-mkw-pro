@@ -18,7 +18,6 @@ export function showConfirmationModal(title, text, onOk) {
     textEl.textContent = text;
     overlay.classList.add('show');
 
-    // Clonamos los botones para limpiar listeners de eventos anteriores
     const newOkBtn = okBtn.cloneNode(true);
     okBtn.parentNode.replaceChild(newOkBtn, okBtn);
     
@@ -71,6 +70,43 @@ function hideTicketModal() {
     const overlay = document.getElementById('ticket-modal-overlay');
     if (overlay) overlay.classList.remove('show');
 }
+
+// --- INICIO DE NUEVA FUNCIONALIDAD: LÓGICA DEL MODAL DE COMPROBANTES ---
+function hideReceiptModal() {
+    const overlay = document.getElementById('receipt-modal-overlay');
+    if (overlay) overlay.classList.remove('show');
+}
+
+export function showReceiptModal(receipt) {
+    const overlay = document.getElementById('receipt-modal-overlay');
+    if (!overlay) return;
+
+    // Poblar los campos del modal con los datos del comprobante
+    document.getElementById('modal-receipt-image').src = receipt.urlArchivo || 'https://via.placeholder.com/400?text=No+Imagen';
+    document.getElementById('modal-receipt-entidad').textContent = receipt.resultadoIA?.entidad || 'N/A';
+    document.getElementById('modal-receipt-monto').textContent = receipt.resultadoIA?.monto ? `$${receipt.resultadoIA.monto}` : 'N/A';
+    document.getElementById('modal-receipt-fecha').textContent = receipt.resultadoIA?.fecha || 'N/A';
+    document.getElementById('modal-receipt-referencia').textContent = receipt.resultadoIA?.referencia || 'N/A';
+    document.getElementById('modal-receipt-fiabilidad').textContent = `${receipt.resultadoIA?.confiabilidad_porcentaje || 0}%`;
+    document.getElementById('modal-receipt-cliente').textContent = receipt.cliente?.nombre || 'Desconocido';
+    document.getElementById('modal-receipt-remitente').textContent = receipt.remitente || 'N/A';
+    document.getElementById('modal-receipt-estado').innerHTML = `<span class="status-badge status-${(receipt.estado || '').toLowerCase().replace(/ /g, '-')}">${receipt.estado || 'N/A'}</span>`;
+
+    const approveBtn = document.getElementById('modal-approve-receipt-btn');
+    const rejectBtn = document.getElementById('modal-reject-receipt-btn');
+
+    // Guardar el ID en los botones para acciones futuras
+    approveBtn.dataset.receiptId = receipt.id;
+    rejectBtn.dataset.receiptId = receipt.id;
+
+    // Deshabilitar botones si el comprobante ya fue procesado
+    const isProcessed = ['Aprobado', 'Rechazado'].includes(receipt.estado);
+    approveBtn.disabled = isProcessed;
+    rejectBtn.disabled = isProcessed;
+    
+    overlay.classList.add('show');
+}
+// --- FIN DE NUEVA FUNCIONALIDAD ---
 
 // --- Lógica del Modal de Ventas (Añadir/Editar Items Generales) ---
 export function openSalesModal(type, data = {}, salesData) {
@@ -203,12 +239,9 @@ export function openMenuItemModal(itemData, parentId, onSave) {
     overlay.classList.add('show');
 }
 
-// --- INICIO DE MODIFICACIÓN: Se eliminan los listeners de clic en el overlay ---
 export function initializeModals() {
-    // Listener para el botón 'X' del modal de tickets
     document.getElementById('close-modal-btn')?.addEventListener('click', hideTicketModal);
     
-    // Listener para el botón 'Cerrar Ticket' dentro del modal
     document.getElementById('modal-close-ticket-btn')?.addEventListener('click', (e) => {
         const ticketId = e.target.dataset.ticketId;
         showConfirmationModal('Confirmar Cierre', `¿Estás seguro de que quieres cerrar el ticket ${ticketId}?`, async () => {
@@ -222,14 +255,12 @@ export function initializeModals() {
         });
     });
 
-    // Listener para el botón 'X' del modal de ventas/edición
     document.getElementById('close-sales-modal-btn')?.addEventListener('click', closeSalesModal);
     
-    // Las siguientes líneas que cerraban el modal al hacer clic en el fondo han sido eliminadas:
-    // document.getElementById('ticket-modal-overlay')?.addEventListener('click', ...);
-    // document.getElementById('sales-modal-overlay')?.addEventListener('click', ...);
+    // --- INICIO DE NUEVA FUNCIONALIDAD ---
+    document.getElementById('close-receipt-modal-btn')?.addEventListener('click', hideReceiptModal);
+    // --- FIN DE NUEVA FUNCIONALIDAD ---
     
-    // Listeners para los botones de 'Añadir'
     document.getElementById('add-plan-btn')?.addEventListener('click', () => openSalesModal('planes'));
     document.getElementById('add-promo-btn')?.addEventListener('click', () => openSalesModal('promociones'));
     document.getElementById('add-faq-btn')?.addEventListener('click', () => openSalesModal('preguntasFrecuentes'));
@@ -237,4 +268,3 @@ export function initializeModals() {
         openSalesModal('zona', { isEditing: false });
     });
 }
-// --- FIN DE MODIFICACIÓN ---

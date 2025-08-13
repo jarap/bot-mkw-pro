@@ -6,16 +6,51 @@ const firestoreHandler = require('./firestore_handler');
 const textToSpeech = require('@google-cloud/text-to-speech');
 
 const auth = new GoogleAuth({
-    // --- MODIFICACIÓN ---
-    // Apuntamos al archivo de credenciales unificado.
     keyFilename: './google-credentials.json',
-    // --- FIN DE MODIFICACIÓN ---
     scopes: ['https://www.googleapis.com/auth/cloud-platform'],
 });
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, auth);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 const ttsClient = new textToSpeech.TextToSpeechClient({ auth });
+
+
+// --- INICIO DE NUEVA FUNCIONALIDAD: ANÁLISIS DE COMPROBANTES ---
+
+/**
+ * Analiza una imagen o PDF de un comprobante de pago utilizando un modelo de IA multimodal.
+ * @param {string} archivoBase64 - El contenido del archivo codificado en Base64.
+ * @param {string} mimeType - El tipo MIME del archivo (ej: 'image/jpeg', 'application/pdf').
+ * @param {string} promptPersonalizado - La instrucción detallada para la IA.
+ * @returns {Promise<object>} Un objeto JSON con los datos extraídos o un objeto de error.
+ */
+async function analizarComprobante(archivoBase64, mimeType, promptPersonalizado) {
+    console.log(chalk.cyan(`   -> Analizando comprobante (${mimeType}) con Gemini...`));
+    try {
+        const filePart = {
+            inlineData: {
+                data: archivoBase64,
+                mimeType
+            },
+        };
+
+        const result = await model.generateContent([promptPersonalizado, filePart]);
+        const response = await result.response;
+        const text = response.text();
+
+        // Limpiamos la respuesta para asegurarnos de que sea un JSON válido
+        const jsonString = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        
+        console.log(chalk.green('   -> Análisis de comprobante exitoso.'));
+        return JSON.parse(jsonString);
+
+    } catch (error) {
+        console.error(chalk.red('❌ Error al analizar comprobante con Gemini:'), error);
+        return { error: "Error interno de la IA al procesar el archivo." };
+    }
+}
+
+// --- FIN DE NUEVA FUNCIONALIDAD ---
 
 
 async function transcribirAudio(mimeType, audioBase64) {
@@ -279,4 +314,5 @@ module.exports = {
     answerSupportQuestion,
     transcribirAudio,
     sintetizarVoz,
+    analizarComprobante, // Exportamos la nueva función
 };

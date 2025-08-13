@@ -8,13 +8,18 @@ try {
 
     if (!getApps().length) {
         initializeApp({
-            credential: cert(serviceAccount)
+            credential: cert(serviceAccount),
+            // --- INICIO DE CORRECCIÓN ---
+            // Se corrige el nombre del bucket al que apunta el servicio de storage.
+            storageBucket: `mkw-bot.firebasestorage.app`
+            // --- FIN DE CORRECCIÓN ---
         });
     }
 
     const db = getFirestore();
     console.log(chalk.green('✅ Conectado exitosamente a Cloud Firestore.'));
 
+    // (El resto del archivo permanece exactamente igual)
     const ticketsCollection = db.collection('tickets');
     const planesCollection = db.collection('planes');
     const promosCollection = db.collection('promociones');
@@ -23,6 +28,7 @@ try {
     const zonasCollection = db.collection('zonasCobertura');
     const soporteFaqsCollection = db.collection('soporteFAQ');
     const menuItemsCollection = db.collection('menuItems');
+    const comprobantesCollection = db.collection('comprobantesRecibidos');
 
     async function getMenuItemById(itemId) {
         try {
@@ -55,18 +61,14 @@ try {
             if (isNaN(desiredOrder) || desiredOrder < 1 || desiredOrder > 9) {
                 throw new Error('El número de orden debe ser entre 1 y 9.');
             }
-
             const siblingsSnapshot = await menuItemsCollection.where('parent', '==', itemData.parent).get();
-            
             if (siblingsSnapshot.size >= 9) {
                 throw new Error('Límite alcanzado: solo se permiten 9 opciones por nivel.');
             }
-
             const orderExists = siblingsSnapshot.docs.some(doc => doc.data().order === desiredOrder);
             if (orderExists) {
                 throw new Error(`El número de orden ${desiredOrder} ya está en uso en este nivel.`);
             }
-
             const docRef = await menuItemsCollection.add(itemData);
             return { success: true, id: docRef.id };
         } catch (error) {
@@ -81,14 +83,11 @@ try {
             if (isNaN(desiredOrder) || desiredOrder < 1 || desiredOrder > 9) {
                 throw new Error('El número de orden debe ser entre 1 y 9.');
             }
-
             const siblingsSnapshot = await menuItemsCollection.where('parent', '==', itemData.parent).get();
-
             const orderExists = siblingsSnapshot.docs.some(doc => doc.id !== itemId && doc.data().order === desiredOrder);
             if (orderExists) {
                 throw new Error(`El número de orden ${desiredOrder} ya está en uso en este nivel.`);
             }
-
             await menuItemsCollection.doc(itemId).update(itemData);
             return { success: true };
         } catch (error) {
@@ -101,10 +100,8 @@ try {
         try {
             const allItemsSnapshot = await menuItemsCollection.get();
             const allItems = allItemsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            
             const itemsToDelete = new Set([itemId]);
             let searchQueue = [itemId];
-
             while (searchQueue.length > 0) {
                 const currentParentId = searchQueue.shift();
                 const children = allItems.filter(item => item.parent === currentParentId);
@@ -113,13 +110,11 @@ try {
                     searchQueue.push(child.id);
                 }
             }
-
             const batch = db.batch();
             itemsToDelete.forEach(id => {
                 batch.delete(menuItemsCollection.doc(id));
             });
             await batch.commit();
-
             return { success: true };
         } catch (error) {
             console.error(chalk.red(`❌ Error al eliminar el item de menú ${itemId} y sus descendientes:`), error);
@@ -133,7 +128,6 @@ try {
                 .where('parent', '==', parentId)
                 .orderBy('order')
                 .get();
-            
             if (snapshot.empty) {
                 return [];
             }
@@ -199,12 +193,10 @@ try {
                 zonasCollection.limit(1).get(),
                 soporteFaqsCollection.get()
             ]);
-
             let zonasDoc = null;
             if (!zonasSnap.empty) {
                 zonasDoc = zonasSnap.docs[0];
             }
-
             const salesData = {
                 planes: planesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
                 promociones: promosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })),
@@ -213,7 +205,6 @@ try {
                 configuracionGeneral: configSnap.exists ? { id: configSnap.id, ...configSnap.data() } : {},
                 zonasCobertura: zonasDoc ? { id: zonasDoc.id, ...zonasDoc.data() } : { id: null, listado: [] }
             };
-
             return { success: true, data: salesData };
         } catch (error) {
             console.error(chalk.red('❌ Error al obtener datos de ventas de Firestore:'), error);
@@ -304,7 +295,6 @@ try {
         try {
             const docRef = configCollection.doc('soporte');
             const doc = await docRef.get();
-            
             const defaultConfig = {
                 respuestasPorVozActivas: true,
                 promptAnalisisSentimiento: `Analiza el sentimiento del siguiente mensaje de un cliente a su proveedor de internet. Responde únicamente con una de estas cuatro palabras: "enojado", "frustrado", "neutro", "contento". Mensaje: "{userMessage}"`,
@@ -351,15 +341,12 @@ Mensaje del cliente: "{userMessage}"`,
                 {userMessage}
                 `
             };
-
             if (!doc.exists) {
                 console.warn(chalk.yellow('⚠️ El documento de configuración de soporte no existe. Usando valores por defecto.'));
                 return { success: true, data: defaultConfig };
             }
-
             const dbData = doc.data();
             const finalConfig = { ...defaultConfig, ...dbData };
-            
             return { success: true, data: finalConfig };
         } catch (error) {
             console.error(chalk.red('❌ Error al obtener la configuración de soporte:'), error);
@@ -392,17 +379,72 @@ Mensaje del cliente: "{userMessage}"`,
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN ---
+    async function logComprobante(comprobanteData) {
+        try {
+            const docRef = await comprobantesCollection.add(comprobanteData);
+            console.log(chalk.blue(`🧾 Comprobante ${docRef.id} registrado en Firestore.`));
+            return { success: true, id: docRef.id };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al registrar comprobante en Firestore:'), error);
+            return { success: false, message: 'Error al guardar el comprobante.' };
+        }
+    }
+
+    async function getAllComprobantes() {
+        try {
+            const snapshot = await comprobantesCollection.orderBy('timestamp', 'desc').get();
+            const comprobantes = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return { success: true, data: comprobantes };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al obtener el historial de comprobantes:'), error);
+            return { success: false, message: 'No se pudo obtener el historial.' };
+        }
+    }
+
+    async function updateComprobante(comprobanteId, updateData) {
+        try {
+            const comprobanteRef = comprobantesCollection.doc(comprobanteId);
+            await comprobanteRef.update(updateData);
+            console.log(chalk.blue(`🧾 Comprobante ${comprobanteId} actualizado.`));
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al actualizar el comprobante ${comprobanteId}:`), error);
+            return { success: false, message: 'Error al actualizar el estado del comprobante.' };
+        }
+    }
+    
     async function getPagosConfig() {
         try {
             const docRef = configCollection.doc('pagos');
             const doc = await docRef.get();
-            const defaultConfig = { pagosQrActivos: true };
+            const defaultConfig = {
+                pagosQrActivos: true,
+                umbralFiabilidad: 95,
+                promptAnalisisComprobante: `Eres un asistente experto en contabilidad especializado en comprobantes de pago de Argentina. Tu tarea es analizar la imagen o PDF adjunto y extraer la información clave.
+
+Sigue estas reglas estrictamente:
+1.  **Extrae los siguientes datos**:
+    - \`entidad\`: El nombre del banco o billetera virtual (ej: "Mercado Pago", "Banco Galicia").
+    - \`monto\`: El monto total de la operación.
+    - \`fecha\`: La fecha de la transacción.
+    - \`referencia\`: El número de operación, ID de transacción o código de control.
+2.  **Normaliza los datos**:
+    - Para el \`monto\`, devuélvelo como un string numérico con dos decimales, usando un punto como separador y sin puntos de miles (ej: "70000.00").
+    - Para la \`fecha\`, devuélvela en formato "DD/MM/AAAA".
+3.  **Evalúa la confiabilidad**:
+    - \`confiabilidad_porcentaje\`: Asigna un porcentaje de 0 a 99 basado en la calidad de la imagen y la cantidad de datos que pudiste extraer. Un comprobante digital claro y completo es 99%. Una foto borrosa o una pantalla de confirmación sin datos es 50% o menos.
+4.  **Manejo de Errores**:
+    - Si la imagen no es un comprobante de pago, devuelve un JSON con un único campo: {"error": "El archivo no es un comprobante válido"}.
+
+**Responde únicamente con el objeto JSON resultante, sin ningún texto adicional.**`
+            };
             if (!doc.exists) {
+                console.warn(chalk.yellow('⚠️ El documento de configuración de pagos no existe. Usando valores por defecto.'));
                 return { success: true, data: defaultConfig };
             }
             return { success: true, data: { ...defaultConfig, ...doc.data() } };
         } catch (error) {
+            console.error(chalk.red('❌ Error al obtener la configuración de pagos:'), error);
             return { success: false, message: 'Error al leer la configuración de pagos.' };
         }
     }
@@ -411,12 +453,13 @@ Mensaje del cliente: "{userMessage}"`,
         try {
             const docRef = configCollection.doc('pagos');
             await docRef.set(data, { merge: true });
+            console.log(chalk.blue('💳 Configuración de pagos actualizada en Firestore.'));
             return { success: true };
         } catch (error) {
+            console.error(chalk.red('❌ Error al actualizar la configuración de pagos:'), error);
             return { success: false, message: 'Error al guardar la configuración de pagos.' };
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
 
     module.exports = {
         db,
@@ -441,8 +484,11 @@ Mensaje del cliente: "{userMessage}"`,
         updateMenuItem,
         deleteMenuItem,
         getMenuItemById,
-        getPagosConfig, // --- INICIO DE MODIFICACIÓN ---
-        updatePagosConfig // --- FIN DE MODIFICACIÓN ---
+        logComprobante,
+        getAllComprobantes,
+        updateComprobante,
+        getPagosConfig,
+        updatePagosConfig
     };
 
 } catch (error) {

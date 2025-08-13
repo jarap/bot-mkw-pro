@@ -23,6 +23,7 @@
                     <li><a href="#" data-target="calendar"><i class="fas fa-calendar-alt"></i><span>Calendario</span></a></li>
                     <li><a href="#" data-target="sessions"><i class="fas fa-headset"></i><span>Sesiones Activas</span></a></li>
                     <li><a href="#" data-target="history"><i class="fas fa-history"></i><span>Historial de Tickets</span></a></li>
+                    <li><a href="#" data-target="receipt-history"><i class="fas fa-receipt"></i><span>Historial Comprobantes</span></a></li>
                 </ul>
                 <h3>Herramientas</h3>
                 <ul>
@@ -192,6 +193,31 @@
                     </div>
                 </section>
 
+                <!-- Receipt History Section -->
+                <section id="receipt-history" class="main-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>Historial de Comprobantes Recibidos</h3>
+                        </div>
+                        <div class="card-body" style="overflow-x: auto;">
+                            <table class="tickets-table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Cliente</th>
+                                        <th>Monto (IA)</th>
+                                        <th>Fiabilidad (IA)</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="receipts-table-body">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
                 <!-- Tools Section -->
                 <section id="tools" class="main-section">
                     <div class="tools-grid">
@@ -235,12 +261,10 @@
                                     <div class="settings-icon"><i class="fas fa-headset"></i></div>
                                     <span>Ajustes Bot Soporte</span>
                                 </div>
-                                <!-- --- INICIO DE MODIFICACIÓN --- -->
                                 <div class="settings-card" data-target="ajustes-pagos">
                                     <div class="settings-icon"><i class="fas fa-dollar-sign"></i></div>
                                     <span>Ajustes de Pagos</span>
                                 </div>
-                                <!-- --- FIN DE MODIFICACIÓN --- -->
                                 <div class="settings-card" data-target="ajustes-planes">
                                     <div class="settings-icon"><i class="fas fa-wifi"></i></div>
                                     <span>Planes de Internet</span>
@@ -312,11 +336,10 @@
                     </div>
                 </section>
 
-                <!-- --- INICIO DE MODIFICACIÓN --- -->
                 <section id="ajustes-pagos" class="main-section">
                     <div class="card">
                         <div class="card-header">
-                            <h3>Ajustes de Pagos por QR</h3>
+                            <h3>Ajustes de Pagos</h3>
                             <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar</button>
                         </div>
                         <div class="card-body">
@@ -324,7 +347,6 @@
                         </div>
                     </div>
                 </section>
-                <!-- --- FIN DE MODIFICACIÓN --- -->
 
                 <section id="ajustes-menu-editor" class="main-section">
                     <div class="card">
@@ -333,7 +355,6 @@
                             <button class="action-btn-small back-to-settings" data-target="ajustes-bot-soporte"><i class="fas fa-arrow-left"></i> Regresar</button>
                         </div>
                         <div class="card-body" id="menu-editor-container">
-                           <!-- El contenido se renderiza dinámicamente aquí -->
                         </div>
                     </div>
                 </section>
@@ -465,6 +486,39 @@
             </div>
         </div>
     </div>
+
+    <!-- --- INICIO DE NUEVA FUNCIONALIDAD --- -->
+    <div id="receipt-modal-overlay" class="modal-overlay">
+        <div class="modal modal-lg"> <!-- Added modal-lg class for wider modal -->
+            <div class="modal-header">
+                <h3>Detalles del Comprobante</h3>
+                <button id="close-receipt-modal-btn" class="close-modal-btn">&times;</button>
+            </div>
+            <div class="modal-body receipt-modal-body">
+                <div class="receipt-image-container">
+                    <img id="modal-receipt-image" src="" alt="Comprobante">
+                </div>
+                <div class="receipt-details-container">
+                    <h4>Análisis de la IA</h4>
+                    <p class="receipt-detail"><strong>Entidad:</strong> <span id="modal-receipt-entidad"></span></p>
+                    <p class="receipt-detail"><strong>Monto:</strong> <span id="modal-receipt-monto"></span></p>
+                    <p class="receipt-detail"><strong>Fecha:</strong> <span id="modal-receipt-fecha"></span></p>
+                    <p class="receipt-detail"><strong>Referencia:</strong> <span id="modal-receipt-referencia"></span></p>
+                    <p class="receipt-detail"><strong>Fiabilidad:</strong> <span id="modal-receipt-fiabilidad"></span></p>
+                    <hr>
+                    <h4>Datos del Cliente</h4>
+                    <p class="receipt-detail"><strong>Nombre:</strong> <span id="modal-receipt-cliente"></span></p>
+                    <p class="receipt-detail"><strong>Remitente:</strong> <span id="modal-receipt-remitente"></span></p>
+                    <p class="receipt-detail"><strong>Estado Actual:</strong> <span id="modal-receipt-estado"></span></p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-reject-receipt-btn" class="action-btn disconnect">Rechazar</button>
+                <button id="modal-approve-receipt-btn" class="action-btn connect">Asignar Pago</button>
+            </div>
+        </div>
+    </div>
+    <!-- --- FIN DE NUEVA FUNCIONALIDAD --- -->
 
     <div id="sales-modal-overlay" class="modal-overlay">
         <div class="modal">
