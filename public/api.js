@@ -117,4 +117,8 @@ export const asignarPago = (comprobanteId, data) => fetchData(`/api/comprobantes
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
 });
+
+export const rechazarPago = (comprobanteId) => fetchData(`/api/comprobantes/${comprobanteId}/rechazar`, {
+    method: 'POST',
+});
 // --- FIN DE NUEVA FUNCIONALIDAD ---

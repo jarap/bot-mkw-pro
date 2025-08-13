@@ -9,6 +9,7 @@ const qrcode = require('qrcode');
 const chalk = require('chalk');
 const multer = require('multer');
 const calendarHandler = require('./calendar_handler');
+const { llamarScriptExterno } = require('./external_scripts');
 
 const uploadsDir = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -62,7 +63,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
 
     // --- API Endpoints ---
 
-    // API para obtener datos
     app.get('/api/tickets', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getAllTickets();
         res.status(result.success ? 200 : 500).json(result);
@@ -92,14 +92,11 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // --- INICIO DE NUEVA FUNCIONALIDAD ---
     app.get('/api/comprobantes', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getAllComprobantes();
         res.status(result.success ? 200 : 500).json(result);
     });
-    // --- FIN DE NUEVA FUNCIONALIDAD ---
 
-    // API para acciones del bot
     app.post('/api/actions/connect', checkAuth, (req, res) => {
         whatsappClient.initialize();
         res.json({ success: true, message: 'Inicializando...' });
@@ -121,19 +118,56 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         }
     });
 
-    // API para gestión de tickets
     app.post('/api/tickets/:id/close', checkAuth, async (req, res) => {
         const result = await firestoreHandler.updateTicket(req.params.id, { Estado: 'Cerrado' });
         if (result.success) broadcast({ type: 'ticketsChanged' });
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // --- INICIO DE NUEVA FUNCIONALIDAD ---
     app.post('/api/comprobantes/:id/asignar', checkAuth, async (req, res) => {
-        // Aquí iría la lógica para llamar al script que asigna el pago en MikroWisp
-        const result = await firestoreHandler.updateComprobante(req.params.id, { estado: 'Aprobado' });
-        if (result.success) broadcast({ type: 'receiptsChanged' });
-        res.status(result.success ? 200 : 500).json(result);
+        try {
+            const comprobanteId = req.params.id;
+            const doc = await firestoreHandler.db.collection('comprobantesRecibidos').doc(comprobanteId).get();
+            if (!doc.exists) {
+                return res.status(404).json({ success: false, message: 'Comprobante no encontrado.' });
+            }
+            const comprobante = doc.data();
+
+            const dniCliente = comprobante.cliente?.cedula;
+            if (!dniCliente) {
+                return res.status(400).json({ success: false, message: 'El cliente en el comprobante no tiene DNI para buscar facturas.' });
+            }
+
+            const facturasResult = await llamarScriptExterno('scripts/factura_mkw.js', ['listar', dniCliente]);
+            if (!facturasResult.success || !facturasResult.facturas || facturasResult.facturas.length === 0) {
+                return res.status(400).json({ success: false, message: 'No se encontraron facturas pendientes para este cliente.' });
+            }
+
+            const facturaAPagar = facturasResult.facturas[0];
+            const montoIA = comprobante.resultadoIA.monto;
+            const fechaIA = comprobante.resultadoIA.fecha;
+            const referenciaIA = comprobante.resultadoIA.referencia;
+
+            const pagoResult = await llamarScriptExterno('scripts/asignar_pago_mkw.js', [
+                facturaAPagar.id_factura,
+                montoIA,
+                fechaIA,
+                'Transferencia Bot',
+                referenciaIA
+            ]);
+
+            if (!pagoResult.success) {
+                return res.status(500).json({ success: false, message: `Error al registrar pago en MikroWISP: ${pagoResult.message}`, details: pagoResult.details });
+            }
+            
+            const result = await firestoreHandler.updateComprobante(comprobanteId, { estado: 'Aprobado' });
+            if (result.success) broadcast({ type: 'receiptsChanged' });
+            res.status(result.success ? 200 : 500).json(result);
+
+        } catch (error) {
+            console.error(chalk.red('❌ Error en el proceso de asignación de pago:'), error);
+            res.status(500).json({ success: false, message: 'Error interno del servidor.' });
+        }
     });
 
     app.post('/api/comprobantes/:id/rechazar', checkAuth, async (req, res) => {
@@ -141,9 +175,7 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         if (result.success) broadcast({ type: 'receiptsChanged' });
         res.status(result.success ? 200 : 500).json(result);
     });
-    // --- FIN DE NUEVA FUNCIONALIDAD ---
 
-    // API para CRUD genérico de datos de ventas
     app.post('/api/data/:collection', checkAuth, async (req, res) => {
         const result = await firestoreHandler.addItem(req.params.collection, req.body);
         res.status(result.success ? 200 : 500).json(result);
@@ -159,7 +191,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // API para configuración
     app.get('/api/config/empresa', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getCompanyConfig();
         res.status(result.success ? 200 : 500).json(result);
@@ -201,7 +232,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // API para subida de logo
     app.post('/api/upload/logo', checkAuth, upload.single('logo'), (req, res) => {
         if (!req.file) {
             return res.status(400).json({ success: false, message: 'No se subió ningún archivo.' });
@@ -209,7 +239,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.json({ success: true, filePath: `/uploads/${req.file.filename}` });
     });
 
-    // API para Calendario
     app.get('/api/calendar/events', checkAuth, async (req, res) => {
         const result = await calendarHandler.getEvents();
         res.status(result.success ? 200 : 500).json(result);
@@ -221,7 +250,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // API para Menús
     app.get('/api/menu-items', checkAuth, async (req, res) => {
         const result = await firestoreHandler.getAllMenuItems();
         res.status(result.success ? 200 : 500).json(result);
@@ -258,17 +286,12 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
 
         try {
             ws.send(JSON.stringify({ type: 'status', data: whatsappClient.getStatus() }));
-        } catch (error) {
-            console.error(chalk.red('❌ Error al enviar estado inicial del bot por WebSocket:'), error);
-        }
-
-        try {
             const configResult = await firestoreHandler.getCompanyConfig();
             if (configResult.success) {
                 ws.send(JSON.stringify({ type: 'companyConfig', data: configResult.data }));
             }
         } catch (error) {
-            console.error(chalk.red('❌ Error al enviar config de empresa por WebSocket:'), error);
+            console.error(chalk.red('❌ Error al enviar datos iniciales por WebSocket:'), error);
         }
 
         ws.on('close', () => {
@@ -296,9 +319,8 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         broadcast({ type: 'sessionsChanged' });
         broadcast({ type: 'ticketsChanged' });
     });
-    // --- INICIO DE NUEVA FUNCIONALIDAD ---
+    
     whatsappClient.on('receiptsUpdate', () => broadcast({ type: 'receiptsChanged' }));
-    // --- FIN DE NUEVA FUNCIONALIDAD ---
     
     setInterval(broadcastKPIs, 60000);
 

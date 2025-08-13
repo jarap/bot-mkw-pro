@@ -259,6 +259,33 @@ export function initializeModals() {
     
     // --- INICIO DE NUEVA FUNCIONALIDAD ---
     document.getElementById('close-receipt-modal-btn')?.addEventListener('click', hideReceiptModal);
+
+    document.getElementById('modal-approve-receipt-btn')?.addEventListener('click', (e) => {
+        const receiptId = e.target.dataset.receiptId;
+        showConfirmationModal('Confirmar Asignación', `¿Estás seguro de que quieres aprobar y asignar el pago para este comprobante?`, async () => {
+            try {
+                // Por ahora no se envían datos adicionales, pero la API lo permite.
+                await api.asignarPago(receiptId, {});
+                showCustomAlert('Éxito', 'El pago ha sido asignado correctamente.');
+                hideReceiptModal();
+            } catch (error) {
+                showCustomAlert('Error', `No se pudo asignar el pago: ${error.message}`);
+            }
+        });
+    });
+
+    document.getElementById('modal-reject-receipt-btn')?.addEventListener('click', (e) => {
+        const receiptId = e.target.dataset.receiptId;
+        showConfirmationModal('Confirmar Rechazo', `¿Estás seguro de que quieres rechazar este comprobante? Esta acción no se puede deshacer.`, async () => {
+            try {
+                await api.rechazarPago(receiptId);
+                showCustomAlert('Éxito', 'El comprobante ha sido rechazado.');
+                hideReceiptModal();
+            } catch (error) {
+                showCustomAlert('Error', `No se pudo rechazar el comprobante: ${error.message}`);
+            }
+        });
+    });
     // --- FIN DE NUEVA FUNCIONALIDAD ---
     
     document.getElementById('add-plan-btn')?.addEventListener('click', () => openSalesModal('planes'));

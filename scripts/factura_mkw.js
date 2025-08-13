@@ -1,8 +1,7 @@
-// scripts/facturas_mkw.js
+// scripts/factura_mkw.js
 const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
-// La línea require('dotenv').config(); ha sido eliminada.
 
 function responder(data) {
     console.log(JSON.stringify(data, null, 2));
@@ -72,7 +71,8 @@ async function listarFacturas() {
                     fecha_vencimiento: f.vencimiento,
                     total_formateado: f.total2 || f.total
                 }))
-                .sort((a, b) => new Date(b.fecha_vencimiento) - new Date(a.fecha_vencimiento));
+                // CORRECCIÓN: Se cambia el orden a 'a - b' para que la factura más antigua (menor fecha) aparezca primero.
+                .sort((a, b) => new Date(a.fecha_vencimiento) - new Date(b.fecha_vencimiento));
 
             if (facturasFiltradas.length > 0) {
                 responder({ success: true, facturas: facturasFiltradas });

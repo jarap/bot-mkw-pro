@@ -392,12 +392,9 @@ b {
 .status-pendiente { background: var(--color-warning); }
 .status-en-progreso { background: var(--color-primary); }
 .status-cerrado { background: var(--color-dark-variant); }
-/* --- INICIO DE NUEVOS ESTILOS --- */
 .status-aprobado { background: var(--color-success); }
 .status-auto-aprobado { background: #a8e5d3; color: var(--color-dark); }
 .status-rechazado { background: var(--color-danger); }
-/* --- FIN DE NUEVOS ESTILOS --- */
-
 
 .sentiment-icon {
     display: inline-flex;
@@ -559,7 +556,6 @@ b {
     gap: 1rem;
 }
 
-/* --- INICIO DE NUEVOS ESTILOS: MODAL DE COMPROBANTES --- */
 .modal.modal-lg {
     max-width: 900px;
 }
@@ -587,7 +583,6 @@ b {
 .receipt-detail {
     margin-bottom: 0.8rem;
 }
-/* --- FIN DE NUEVOS ESTILOS --- */
 
 /* --- Menu Editor --- */
 .menu-tree-container {
@@ -854,3 +849,17 @@ body.login-page {
     font-size: 0.8rem;
     color: var(--color-info-dark);
 }
+
+/* --- INICIO DE CORRECCIÓN: TAMAÑO QR --- */
+.qr-body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#qr-image {
+    max-width: 300px; /* Limita el ancho máximo del QR */
+    width: 100%;      /* Hace que sea responsive dentro del límite */
+    height: auto;     /* Mantiene la proporción */
+}
+/* --- FIN DE CORRECCIÓN --- */

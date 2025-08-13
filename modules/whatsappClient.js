@@ -17,10 +17,7 @@ const supportGroupPool = {};
 const TIMEOUT_MS = 15 * 60 * 1000;
 const STATE_TTL_SECONDS = 3600; // 1 hora
 const SALES_LEADS_GROUP_ID = process.env.SALES_LEADS_GROUP_ID;
-
-// --- INICIO DE NUEVA CONSTANTE ---
 const AWAIT_DNI_TTL_SECONDS = 60; // 60 segundos de espera para el DNI
-// --- FIN DE NUEVA CONSTANTE ---
 
 const storage = getStorage();
 
@@ -51,9 +48,25 @@ class WhatsAppClient extends EventEmitter {
         console.log(chalk.green(`✅ Pool de ${Object.keys(supportGroupPool).length} grupos de soporte inicializado.`));
     }
 
-    initialize() {
-        if (this.client || this.status === 'INICIALIZING') return;
+    async initialize() {
+        // --- INICIO DE CORRECCIÓN ---
+        // Se añade lógica para forzar la desconexión si el cliente ya existe,
+        // garantizando un estado limpio antes de inicializar.
+        if (this.client) {
+            console.warn(chalk.yellow('[DIAGNÓSTICO] Se detectó un cliente existente. Forzando desconexión antes de reiniciar...'));
+            await this.disconnect();
+        }
+        // --- FIN DE CORRECCIÓN ---
+        
+        if (this.status === 'INICIALIZANDO') {
+            console.warn(chalk.yellow('[DIAGNÓSTICO] La inicialización ya está en progreso. Omitiendo nueva solicitud.'));
+            return;
+        }
+
         this.updateStatus('INICIALIZANDO');
+        
+        console.log(chalk.cyan('[DIAGNÓSTICO] Creando nueva instancia del cliente de WhatsApp...'));
+        
         this.client = new Client({
             authStrategy: new LocalAuth({ clientId: "bot_mkw" }),
             puppeteer: { args: ['--no-sandbox', '--disable-setuid-sandbox'] },
@@ -69,29 +82,36 @@ class WhatsAppClient extends EventEmitter {
         this.client.on('auth_failure', this.onAuthFailure.bind(this));
         this.client.on('message', this.handleMessage.bind(this));
         
+        console.log(chalk.cyan('[DIAGNÓSTICO] Inicializando cliente... Este proceso puede tardar.'));
         this.client.initialize().catch((err) => {
-            console.error(chalk.red('Error en client.initialize():'), err);
+            console.error(chalk.red('[DIAGNÓSTICO] Fallo catastrófico en client.initialize().'), err);
             this.updateStatus('ERROR');
         });
     }
 
-    onReady() { this.updateStatus('CONECTADO'); }
+    onReady() { 
+        console.log(chalk.green.bold('[DIAGNÓSTICO] Evento "ready" recibido. ¡El bot está conectado!'));
+        this.updateStatus('CONECTADO'); 
+    }
     onDisconnected() { this.updateStatus('DESCONECTADO'); }
     onAuthFailure() { this.updateStatus('ERROR DE AUTENTICACIÓN'); }
     
     async disconnect() {
         if (this.client) {
+            console.log(chalk.yellow('[DIAGNÓSTICO] Iniciando proceso de desconexión...'));
             await this.client.destroy();
+            // --- INICIO DE CORRECCIÓN ---
+            // Se establece explícitamente el cliente a null para asegurar un estado limpio.
             this.client = null;
+            // --- FIN DE CORRECCIÓN ---
             this.updateStatus('DESCONECTADO');
+            console.log(chalk.green('[DIAGNÓSTICO] Cliente de WhatsApp desconectado y limpiado.'));
         }
     }
 
     async handleMessage(message) {
         if (message.fromMe || message.from === 'status@broadcast' || !this.client) return;
         
-        console.log(chalk.gray(`[DEBUG] Mensaje recibido de ${message.from}. Tipo: ${message.type}, Mimetype: ${message.mimetype}`));
-
         const chat = await message.getChat();
         if (chat.isGroup) {
             await this.handleGroupMessage(message);
@@ -105,7 +125,6 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN: Lógica para clientes no identificados ---
     async procesarComprobanteRecibido(message) {
         const chatId = message.from;
         
@@ -114,12 +133,10 @@ class WhatsAppClient extends EventEmitter {
             if (!media || !media.data) throw new Error("No se pudo descargar el archivo adjunto.");
 
             if (!media.mimetype || !(media.mimetype.startsWith('image/') || media.mimetype === 'application/pdf')) {
-                console.log(chalk.yellow(`   -> Archivo de tipo '${media.mimetype}' ignorado. No es un comprobante válido.`));
                 await this.client.sendMessage(chatId, "El archivo que enviaste no parece ser un comprobante (imagen o PDF). Por favor, intenta de nuevo.");
                 return;
             }
 
-            console.log(chalk.blue(`🧾 Archivo recibido de ${chatId}. Iniciando procesamiento de comprobante...`));
             await this.client.sendMessage(chatId, "¡Recibimos tu comprobante! 📄 Un momento por favor, lo estoy analizando... 🤖");
 
             const bucket = storage.bucket();
@@ -131,8 +148,6 @@ class WhatsAppClient extends EventEmitter {
             
             const [downloadURL] = await file.getSignedUrl({ action: 'read', expires: '03-09-2491' });
             
-            console.log(chalk.green(`   -> Archivo subido a Storage. URL: ${downloadURL}`));
-
             const phoneNumber = chatId.replace('@c.us', '').slice(-10);
             const clientResult = await getClientDetails(phoneNumber);
             
@@ -141,14 +156,11 @@ class WhatsAppClient extends EventEmitter {
             const umbral = configResult.data.umbralFiabilidad;
             
             const iaResult = await iaHandler.analizarComprobante(media.data, media.mimetype, prompt);
-            console.log(chalk.yellow('   -> Resultado del análisis de IA:'), iaResult);
             
             let clientInfo;
             let logResult;
 
-            // Lógica condicional para cliente conocido vs. desconocido
             if (clientResult.success) {
-                // FLUJO PARA CLIENTE CONOCIDO (LÓGICA ORIGINAL)
                 const clientData = clientResult.data;
                 clientInfo = { id: clientData.id, nombre: clientData.nombre, cedula: clientData.cedula };
                 const comprobanteData = {
@@ -160,10 +172,7 @@ class WhatsAppClient extends EventEmitter {
                     estado: 'Pendiente',
                 };
                 logResult = await firestoreHandler.logComprobante(comprobanteData);
-
             } else {
-                // FLUJO NUEVO PARA CLIENTE DESCONOCIDO
-                console.log(chalk.yellow(`   -> Comprobante de un número no registrado. Solicitando DNI.`));
                 clientInfo = { nombre: `Remitente: ${chatId.replace('@c.us', '')}`, cedula: '' };
                 const comprobanteData = {
                     timestamp: new Date(),
@@ -185,7 +194,6 @@ class WhatsAppClient extends EventEmitter {
                 throw new Error("No se pudo registrar el comprobante en la base de datos.");
             }
 
-            // Notificación al usuario post-análisis (solo si no se pidió DNI)
             if (clientResult.success) {
                  if (iaResult.error) {
                     await this.client.sendMessage(chatId, `⚠️ No pude analizar el archivo. Motivo: ${iaResult.error}. Un agente lo revisará manualmente.`);
@@ -210,7 +218,6 @@ class WhatsAppClient extends EventEmitter {
             await this.client.sendMessage(chatId, "Lo siento, ocurrió un error técnico al procesar tu comprobante. Un agente lo revisará manualmente.");
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
     
     async sendAiResponse(chatId, textResponse) {
         const configResult = await firestoreHandler.getSoporteConfig();
@@ -228,16 +235,13 @@ class WhatsAppClient extends EventEmitter {
                 await this.client.sendMessage(chatId, audioMedia, { sendAudioAsVoice: true });
             } catch (e) {
                 console.error(chalk.red('❌ Error al enviar el audio como nota de voz:'), e);
-                console.log(chalk.yellow('   -> Fallback: Enviando respuesta como texto.'));
                 await this.client.sendMessage(chatId, textResponse);
             }
         } else {
-            console.log(chalk.yellow('   -> Fallback: Enviando respuesta como texto porque la síntesis falló.'));
             await this.client.sendMessage(chatId, textResponse);
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN: Lógica para capturar DNI post-comprobante ---
     async handleClientMessage(message) {
         const chatId = message.from;
         let userMessage = '';
@@ -266,8 +270,6 @@ class WhatsAppClient extends EventEmitter {
             return;
         }
         
-        console.log(chalk.blue(`📥 Mensaje (procesado) de ${chatId}:`) + ` ${userMessage}`);
-
         const activeSession = await redisClient.get(`session_client:${chatId}`);
         if (activeSession) {
             const messageToRelay = { ...message, body: userMessage };
@@ -277,10 +279,8 @@ class WhatsAppClient extends EventEmitter {
 
         let currentState = await redisClient.get(`state:${chatId}`);
 
-        // NUEVA LÓGICA: Capturar DNI después de enviar un comprobante
         if (currentState && currentState.step === 'awaiting_dni_for_receipt') {
             const dni = userMessage.replace(/[.-]/g, '');
-            console.log(chalk.cyan(`   -> Recibido DNI ${dni} para asociar al comprobante ${currentState.lastReceiptId}`));
             const clientResult = await getClientDetails(dni);
 
             if (clientResult.success) {
@@ -291,10 +291,9 @@ class WhatsAppClient extends EventEmitter {
                 await redisClient.del(`state:${chatId}`);
                 this.emit('receiptsUpdate');
             } else {
-                await this.client.sendMessage(chatId, "No pude encontrar una cuenta con ese DNI. Por favor, verifica el número e inténtalo de nuevo. El comprobante será revisado manualmente.");
-                // Dejamos que el estado expire solo.
+                await this.client.sendMessage(chatId, "No pude encontrar una cuenta con ese DNI. Por favor, verifica el número e inténtalo de nuevo. El comprobante será revisado manually.");
             }
-            return; // Finaliza la ejecución para este mensaje
+            return;
         }
 
         if (userMessage.toLowerCase() === '!fin') {
@@ -363,7 +362,6 @@ class WhatsAppClient extends EventEmitter {
                 break;
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
 
     async handleRegisteredClient(chatId, userMessage, currentState) {
         const isNumericOption = /^\d+$/.test(userMessage);
@@ -403,7 +401,6 @@ class WhatsAppClient extends EventEmitter {
             const selectedNumber = parseInt(userMessage, 10);
     
             if (selectedNumber === 0 && currentState.currentParentId !== 'root') {
-                console.log(chalk.green(`   -> Usuario seleccionó la opción: "Volver al Menú Principal"`));
                 await this.sendMenu(chatId, 'root', currentState);
                 return;
             }
@@ -411,7 +408,6 @@ class WhatsAppClient extends EventEmitter {
             const selectedOption = currentOptions.find(opt => opt.order === selectedNumber);
     
             if (selectedOption) {
-                console.log(chalk.green(`   -> Usuario seleccionó la opción: "${selectedOption.title}"`));
                 await this.executeMenuAction(chatId, selectedOption, currentState);
             } else {
                 await this.client.sendMessage(chatId, "⚠️ Opción no válida. Por favor, elige uno de los números de la lista.");
@@ -447,7 +443,6 @@ class WhatsAppClient extends EventEmitter {
         } else {
             const menuHeader = await firestoreHandler.getMenuItemById(parentId);
             if (!menuHeader) {
-                console.error(chalk.red(`No se pudo encontrar el encabezado del menú para el padre '${parentId}'.`));
                 await this.client.sendMessage(chatId, "Lo siento, tuvimos un problema para mostrar las opciones.");
                 return;
             }
@@ -474,7 +469,6 @@ class WhatsAppClient extends EventEmitter {
         currentState.currentParentId = parentId;
         currentState.currentOptions = options;
         await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
-        console.log(chalk.magenta(`   -> Menú para padre '${parentId}' enviado y estado actualizado.`));
     }
 
     async executeMenuAction(chatId, selectedOption, currentState) {
@@ -495,7 +489,6 @@ class WhatsAppClient extends EventEmitter {
                 await this.startInvoicePaymentFlow(chatId, currentState);
                 break;
             default:
-                console.error(chalk.red(`Tipo de acción desconocida: ${selectedOption.actionType}`));
                 await this.client.sendMessage(chatId, "Hubo un problema al procesar tu selección.");
                 break;
         }
@@ -512,8 +505,6 @@ class WhatsAppClient extends EventEmitter {
 
         const result = await llamarScriptExterno('scripts/factura_mkw.js', ['listar', dni]);
         
-        console.log('[PUNTO DE CONTROL WC] Respuesta recibida del script:', JSON.stringify(result, null, 2));
-
         if (!result.success || !result.facturas || result.facturas.length === 0) {
             await this.client.sendMessage(chatId, "¡Buenas noticias! No encontré facturas pendientes de pago a tu nombre. 😊");
             await redisClient.del(`state:${chatId}`);
