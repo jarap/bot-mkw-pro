@@ -18,6 +18,10 @@ const TIMEOUT_MS = 15 * 60 * 1000;
 const STATE_TTL_SECONDS = 3600; // 1 hora
 const SALES_LEADS_GROUP_ID = process.env.SALES_LEADS_GROUP_ID;
 
+// --- INICIO DE NUEVA CONSTANTE ---
+const AWAIT_DNI_TTL_SECONDS = 60; // 60 segundos de espera para el DNI
+// --- FIN DE NUEVA CONSTANTE ---
+
 const storage = getStorage();
 
 class WhatsAppClient extends EventEmitter {
@@ -101,6 +105,7 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
+    // --- INICIO DE MODIFICACIÓN: Lógica para clientes no identificados ---
     async procesarComprobanteRecibido(message) {
         const chatId = message.from;
         
@@ -122,57 +127,80 @@ class WhatsAppClient extends EventEmitter {
             const file = bucket.file(fileName);
             const fileBuffer = Buffer.from(media.data, 'base64');
 
-            await file.save(fileBuffer, {
-                metadata: { contentType: media.mimetype },
-            });
+            await file.save(fileBuffer, { metadata: { contentType: media.mimetype } });
             
-            const [downloadURL] = await file.getSignedUrl({
-                action: 'read',
-                expires: '03-09-2491'
-            });
+            const [downloadURL] = await file.getSignedUrl({ action: 'read', expires: '03-09-2491' });
             
             console.log(chalk.green(`   -> Archivo subido a Storage. URL: ${downloadURL}`));
 
             const phoneNumber = chatId.replace('@c.us', '').slice(-10);
             const clientResult = await getClientDetails(phoneNumber);
-            const clientData = clientResult.success ? clientResult.data : null;
-            const clientInfo = clientData ? { id: clientData.id, nombre: clientData.nombre, cedula: clientData.cedula } : { nombre: 'Desconocido', cedula: '' };
-
+            
             const configResult = await firestoreHandler.getPagosConfig();
             const prompt = configResult.data.promptAnalisisComprobante;
             const umbral = configResult.data.umbralFiabilidad;
             
             const iaResult = await iaHandler.analizarComprobante(media.data, media.mimetype, prompt);
             console.log(chalk.yellow('   -> Resultado del análisis de IA:'), iaResult);
-
-            const comprobanteData = {
-                timestamp: new Date(),
-                cliente: clientInfo,
-                remitente: chatId,
-                urlArchivo: downloadURL,
-                resultadoIA: iaResult,
-                estado: 'Pendiente',
-            };
             
-            const logResult = await firestoreHandler.logComprobante(comprobanteData);
+            let clientInfo;
+            let logResult;
+
+            // Lógica condicional para cliente conocido vs. desconocido
+            if (clientResult.success) {
+                // FLUJO PARA CLIENTE CONOCIDO (LÓGICA ORIGINAL)
+                const clientData = clientResult.data;
+                clientInfo = { id: clientData.id, nombre: clientData.nombre, cedula: clientData.cedula };
+                const comprobanteData = {
+                    timestamp: new Date(),
+                    cliente: clientInfo,
+                    remitente: chatId,
+                    urlArchivo: downloadURL,
+                    resultadoIA: iaResult,
+                    estado: 'Pendiente',
+                };
+                logResult = await firestoreHandler.logComprobante(comprobanteData);
+
+            } else {
+                // FLUJO NUEVO PARA CLIENTE DESCONOCIDO
+                console.log(chalk.yellow(`   -> Comprobante de un número no registrado. Solicitando DNI.`));
+                clientInfo = { nombre: `Remitente: ${chatId.replace('@c.us', '')}`, cedula: '' };
+                const comprobanteData = {
+                    timestamp: new Date(),
+                    cliente: clientInfo,
+                    remitente: chatId,
+                    urlArchivo: downloadURL,
+                    resultadoIA: iaResult,
+                    estado: 'Pendiente (No Identificado)',
+                };
+                logResult = await firestoreHandler.logComprobante(comprobanteData);
+                if (logResult.success) {
+                    const newState = { step: 'awaiting_dni_for_receipt', lastReceiptId: logResult.id };
+                    await redisClient.set(`state:${chatId}`, newState, AWAIT_DNI_TTL_SECONDS);
+                    await this.client.sendMessage(chatId, "He recibido tu comprobante. Para poder asociarlo a tu cuenta, por favor, envíame tu DNI o CUIT.");
+                }
+            }
+
             if (!logResult.success) {
                 throw new Error("No se pudo registrar el comprobante en la base de datos.");
             }
-            const newId = logResult.id;
 
-            if (iaResult.error) {
-                await this.client.sendMessage(chatId, `⚠️ No pude analizar el archivo. Motivo: ${iaResult.error}. Un agente lo revisará manualmente.`);
-            } else {
-                const fiabilidad = iaResult.confiabilidad_porcentaje || 0;
-                let responseMsg = `¡Análisis completo! 👍\n\n*Entidad:* ${iaResult.entidad || 'N/A'}\n*Monto:* $${iaResult.monto || 'N/A'}\n*Fecha:* ${iaResult.fecha || 'N/A'}\n\n*Fiabilidad:* ${fiabilidad}%\n\n`;
-                
-                if (fiabilidad >= umbral) {
-                    responseMsg += "La fiabilidad es alta. Intentaremos procesar tu pago automáticamente. Te notificaremos si hay algún problema.";
-                    await firestoreHandler.updateComprobante(newId, { estado: 'Auto-Aprobado' });
+            // Notificación al usuario post-análisis (solo si no se pidió DNI)
+            if (clientResult.success) {
+                 if (iaResult.error) {
+                    await this.client.sendMessage(chatId, `⚠️ No pude analizar el archivo. Motivo: ${iaResult.error}. Un agente lo revisará manualmente.`);
                 } else {
-                    responseMsg += "La fiabilidad es baja. Un agente revisará tu comprobante a la brevedad para confirmar el pago.";
+                    const fiabilidad = iaResult.confiabilidad_porcentaje || 0;
+                    let responseMsg = `¡Análisis completo! 👍\n\n*Entidad:* ${iaResult.entidad || 'N/A'}\n*Monto:* $${iaResult.monto || 'N/A'}\n*Fecha:* ${iaResult.fecha || 'N/A'}\n\n*Fiabilidad:* ${fiabilidad}%\n\n`;
+                    
+                    if (fiabilidad >= umbral) {
+                        responseMsg += "La fiabilidad es alta. Intentaremos procesar tu pago automáticamente. Te notificaremos si hay algún problema.";
+                        await firestoreHandler.updateComprobante(logResult.id, { estado: 'Auto-Aprobado' });
+                    } else {
+                        responseMsg += "La fiabilidad es baja. Un agente revisará tu comprobante a la brevedad para confirmar el pago.";
+                    }
+                    await this.client.sendMessage(chatId, responseMsg);
                 }
-                await this.client.sendMessage(chatId, responseMsg);
             }
             
             this.emit('receiptsUpdate');
@@ -182,10 +210,8 @@ class WhatsAppClient extends EventEmitter {
             await this.client.sendMessage(chatId, "Lo siento, ocurrió un error técnico al procesar tu comprobante. Un agente lo revisará manualmente.");
         }
     }
+    // --- FIN DE MODIFICACIÓN ---
     
-    // (El resto del archivo permanece exactamente igual)
-    // ... (código existente de sendAiResponse, handleClientMessage, etc.) ...
-
     async sendAiResponse(chatId, textResponse) {
         const configResult = await firestoreHandler.getSoporteConfig();
         const voiceResponsesEnabled = configResult.success && configResult.data.respuestasPorVozActivas;
@@ -211,6 +237,7 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
+    // --- INICIO DE MODIFICACIÓN: Lógica para capturar DNI post-comprobante ---
     async handleClientMessage(message) {
         const chatId = message.from;
         let userMessage = '';
@@ -248,13 +275,33 @@ class WhatsAppClient extends EventEmitter {
             return;
         }
 
+        let currentState = await redisClient.get(`state:${chatId}`);
+
+        // NUEVA LÓGICA: Capturar DNI después de enviar un comprobante
+        if (currentState && currentState.step === 'awaiting_dni_for_receipt') {
+            const dni = userMessage.replace(/[.-]/g, '');
+            console.log(chalk.cyan(`   -> Recibido DNI ${dni} para asociar al comprobante ${currentState.lastReceiptId}`));
+            const clientResult = await getClientDetails(dni);
+
+            if (clientResult.success) {
+                const clientData = clientResult.data;
+                const clientInfo = { id: clientData.id, nombre: clientData.nombre, cedula: clientData.cedula };
+                await firestoreHandler.updateComprobante(currentState.lastReceiptId, { cliente: clientInfo, estado: 'Pendiente' });
+                await this.client.sendMessage(chatId, `¡Gracias, ${clientData.nombre}! Hemos asociado el comprobante a tu cuenta. Un agente lo revisará a la brevedad.`);
+                await redisClient.del(`state:${chatId}`);
+                this.emit('receiptsUpdate');
+            } else {
+                await this.client.sendMessage(chatId, "No pude encontrar una cuenta con ese DNI. Por favor, verifica el número e inténtalo de nuevo. El comprobante será revisado manualmente.");
+                // Dejamos que el estado expire solo.
+            }
+            return; // Finaliza la ejecución para este mensaje
+        }
+
         if (userMessage.toLowerCase() === '!fin') {
             await redisClient.del(`state:${chatId}`);
             await this.client.sendMessage(chatId, 'Ok, hemos reiniciado la conversación. Puedes empezar de nuevo.');
             return;
         }
-
-        let currentState = await redisClient.get(`state:${chatId}`);
         
         if (currentState && currentState.awaiting_agent) {
             await this.client.sendMessage(chatId, "¡Hola! Ya tenés una solicitud de soporte abierta. Un agente te responderá a la brevedad. 👍");
@@ -316,6 +363,7 @@ class WhatsAppClient extends EventEmitter {
                 break;
         }
     }
+    // --- FIN DE MODIFICACIÓN ---
 
     async handleRegisteredClient(chatId, userMessage, currentState) {
         const isNumericOption = /^\d+$/.test(userMessage);
