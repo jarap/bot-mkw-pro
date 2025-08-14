@@ -1,6 +1,36 @@
 // public/render.js
 // Módulo para renderizar (dibujar) HTML en el DOM.
 
+// --- INICIO DE MODIFICACIÓN: Nueva función para renderizar usuarios ---
+/**
+ * Dibuja las filas de la tabla de gestión de usuarios.
+ * @param {HTMLElement} tableBody - El tbody de la tabla.
+ * @param {object} users - El objeto de usuarios.
+ */
+export function renderUsers(tableBody, users) {
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    if (!users || Object.keys(users).length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="3">No hay usuarios para mostrar.</td></tr>';
+        return;
+    }
+
+    for (const username in users) {
+        const user = users[username];
+        const row = tableBody.insertRow();
+        row.innerHTML = `
+            <td>${username}</td>
+            <td>${user.role}</td>
+            <td>
+                <button class="action-btn-small edit-user-btn" data-username="${username}" title="Editar Usuario"><i class="fas fa-edit"></i></button>
+                <button class="action-btn-small delete-user-btn" data-username="${username}" title="Eliminar Usuario"><i class="fas fa-trash"></i></button>
+            </td>
+        `;
+    }
+}
+// --- FIN DE MODIFICACIÓN ---
+
+
 /**
  * Función auxiliar para construir un árbol jerárquico a partir de una lista plana de items.
  * @param {Array} items - La lista de todos los items de menú.

@@ -71,7 +71,7 @@ function hideTicketModal() {
     if (overlay) overlay.classList.remove('show');
 }
 
-// --- INICIO DE NUEVA FUNCIONALIDAD: LÓGICA DEL MODAL DE COMPROBANTES ---
+// --- Lógica del Modal de Comprobantes ---
 function hideReceiptModal() {
     const overlay = document.getElementById('receipt-modal-overlay');
     if (overlay) overlay.classList.remove('show');
@@ -81,7 +81,6 @@ export function showReceiptModal(receipt) {
     const overlay = document.getElementById('receipt-modal-overlay');
     if (!overlay) return;
 
-    // Poblar los campos del modal con los datos del comprobante
     document.getElementById('modal-receipt-image').src = receipt.urlArchivo || 'https://via.placeholder.com/400?text=No+Imagen';
     document.getElementById('modal-receipt-entidad').textContent = receipt.resultadoIA?.entidad || 'N/A';
     document.getElementById('modal-receipt-monto').textContent = receipt.resultadoIA?.monto ? `$${receipt.resultadoIA.monto}` : 'N/A';
@@ -95,18 +94,79 @@ export function showReceiptModal(receipt) {
     const approveBtn = document.getElementById('modal-approve-receipt-btn');
     const rejectBtn = document.getElementById('modal-reject-receipt-btn');
 
-    // Guardar el ID en los botones para acciones futuras
     approveBtn.dataset.receiptId = receipt.id;
     rejectBtn.dataset.receiptId = receipt.id;
 
-    // Deshabilitar botones si el comprobante ya fue procesado
     const isProcessed = ['Aprobado', 'Rechazado'].includes(receipt.estado);
     approveBtn.disabled = isProcessed;
     rejectBtn.disabled = isProcessed;
     
     overlay.classList.add('show');
 }
-// --- FIN DE NUEVA FUNCIONALIDAD ---
+
+// --- INICIO DE MODIFICACIÓN: Lógica del Modal de Gestión de Usuarios ---
+function hideUserModal() {
+    const overlay = document.getElementById('user-modal-overlay');
+    if (overlay) overlay.classList.remove('show');
+}
+
+/**
+ * Abre y gestiona el modal para añadir o editar un usuario.
+ * @param {object|null} user - El objeto de usuario a editar, o null para crear uno nuevo.
+ * @param {string|null} username - El nombre de usuario original (para ediciones).
+ * @param {function} onSave - Callback que se ejecuta al guardar, recibe los datos del formulario.
+ */
+export function openUserModal(user, username, onSave) {
+    const overlay = document.getElementById('user-modal-overlay');
+    const form = document.getElementById('user-form');
+    const title = document.getElementById('user-modal-title');
+    const usernameInput = document.getElementById('user-form-username');
+    const passwordInput = document.getElementById('user-form-password');
+    const roleSelect = document.getElementById('user-form-role');
+    const originalUsernameInput = document.getElementById('user-form-username-original');
+
+    if (!overlay || !form) return;
+
+    form.reset();
+
+    if (user && username) {
+        title.textContent = 'Editar Usuario';
+        usernameInput.value = username;
+        usernameInput.disabled = true;
+        roleSelect.value = user.role;
+        passwordInput.placeholder = 'Dejar en blanco para no cambiar';
+        originalUsernameInput.value = username;
+    } else {
+        title.textContent = 'Añadir Usuario';
+        usernameInput.disabled = false;
+        passwordInput.placeholder = '';
+        originalUsernameInput.value = '';
+    }
+
+    const newForm = form.cloneNode(true);
+    form.parentNode.replaceChild(newForm, form);
+
+    newForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = {
+            username: newForm.querySelector('#user-form-username').value,
+            password: newForm.querySelector('#user-form-password').value,
+            role: newForm.querySelector('#user-form-role').value
+        };
+        const originalUsername = newForm.querySelector('#user-form-username-original').value;
+
+        if (originalUsername && !data.password) {
+            delete data.password;
+        }
+
+        onSave(data, originalUsername || data.username);
+        hideUserModal();
+    });
+
+    overlay.classList.add('show');
+}
+// --- FIN DE MODIFICACIÓN ---
+
 
 // --- Lógica del Modal de Ventas (Añadir/Editar Items Generales) ---
 export function openSalesModal(type, data = {}, salesData) {
@@ -257,14 +317,16 @@ export function initializeModals() {
 
     document.getElementById('close-sales-modal-btn')?.addEventListener('click', closeSalesModal);
     
-    // --- INICIO DE NUEVA FUNCIONALIDAD ---
     document.getElementById('close-receipt-modal-btn')?.addEventListener('click', hideReceiptModal);
+
+    // --- INICIO DE MODIFICACIÓN: Añadir listener para el botón de cerrar del modal de usuario ---
+    document.getElementById('close-user-modal-btn')?.addEventListener('click', hideUserModal);
+    // --- FIN DE MODIFICACIÓN ---
 
     document.getElementById('modal-approve-receipt-btn')?.addEventListener('click', (e) => {
         const receiptId = e.target.dataset.receiptId;
         showConfirmationModal('Confirmar Asignación', `¿Estás seguro de que quieres aprobar y asignar el pago para este comprobante?`, async () => {
             try {
-                // Por ahora no se envían datos adicionales, pero la API lo permite.
                 await api.asignarPago(receiptId, {});
                 showCustomAlert('Éxito', 'El pago ha sido asignado correctamente.');
                 hideReceiptModal();
@@ -286,7 +348,6 @@ export function initializeModals() {
             }
         });
     });
-    // --- FIN DE NUEVA FUNCIONALIDAD ---
     
     document.getElementById('add-plan-btn')?.addEventListener('click', () => openSalesModal('planes'));
     document.getElementById('add-promo-btn')?.addEventListener('click', () => openSalesModal('promociones'));

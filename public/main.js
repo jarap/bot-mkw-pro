@@ -20,7 +20,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         soporteConfig: {},
         pagosConfig: {},
         activeSessions: [],
-        menuItems: [] 
+        menuItems: [],
+        users: {} // <-- NUEVO: Estado para almacenar usuarios
     };
 
     let calendarInstance = null;
@@ -50,14 +51,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         menuEditorContainer: document.getElementById('menu-editor-container'),
         scheduledVisitsValue: document.getElementById('scheduled-visits-value'),
         visitsFilterButtons: document.getElementById('visits-filter-buttons'),
+        // --- INICIO DE MODIFICACIÓN ---
+        usersTableBody: document.getElementById('users-table-body'),
+        addUserBtn: document.getElementById('add-user-btn'),
+        userForm: document.getElementById('user-form')
+        // --- FIN DE MODIFICACIÓN ---
     };
 
     async function initializeSessionAndPermissions() {
         try {
             const response = await fetch('/api/user/session');
             if (!response.ok) {
-                // Si la sesión no es válida, el backend redirigirá o ya lo hizo.
-                // No continuamos con la carga de la app.
                 console.error('Sesión no válida o expirada.');
                 return false;
             }
@@ -69,7 +73,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         } catch (error) {
             console.error("Error crítico al obtener la sesión del usuario:", error);
-            // Podríamos mostrar un mensaje de error en toda la pantalla aquí.
             return false;
         }
         return false;
@@ -94,7 +97,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     async function forceReloadSalesData() {
-        if (state.currentUser.role === 'operator') return; // Protección adicional
+        if (state.currentUser.role === 'operator') return;
         try {
             const data = await api.getSalesData();
             state.salesData = data;
@@ -109,6 +112,24 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error("Fallo en la recarga de datos de ventas.", error);
         }
     }
+
+    // --- INICIO DE MODIFICACIÓN: Nueva función para cargar y renderizar usuarios ---
+    /**
+     * Carga la lista de usuarios desde la API y la renderiza en la tabla.
+     * Solo se ejecuta si el usuario es administrador.
+     */
+    async function loadAndRenderUsers() {
+        if (state.currentUser.role !== 'admin' || !dom.usersTableBody) return;
+        try {
+            const usersData = await api.getUsers();
+            state.users = usersData;
+            render.renderUsers(dom.usersTableBody, state.users);
+        } catch (error) {
+            console.error("Fallo al cargar la lista de usuarios.", error);
+            dom.usersTableBody.innerHTML = `<tr><td colspan="3">Error al cargar usuarios: ${error.message}</td></tr>`;
+        }
+    }
+    // --- FIN DE MODIFICACIÓN ---
 
     async function loadAndRenderCompanyConfig() {
         if (state.currentUser.role !== 'admin') return;
@@ -283,12 +304,66 @@ document.addEventListener('DOMContentLoaded', async () => {
             'ajustes-zonas': forceReloadSalesData,
             'ajustes-faq-ventas': forceReloadSalesData,
             'ajustes-faq-soporte': forceReloadSalesData,
+            'ajustes-usuarios': loadAndRenderUsers, // <-- INICIO DE MODIFICACIÓN
         };
         ui.initializeUINavigation(navigationCallbacks);
 
         modals.initializeModals();
 
         document.body.addEventListener('click', async (e) => {
+            // --- INICIO DE MODIFICACIÓN: Lógica para botones de usuarios ---
+            const addUserBtn = e.target.closest('#add-user-btn');
+            if (addUserBtn) {
+                modals.openUserModal(null, null, async (data) => {
+                    try {
+                        await api.addUser(data);
+                        ui.showFeedback('Usuario creado con éxito.', 'success');
+                        await loadAndRenderUsers();
+                    } catch (error) {
+                        ui.showFeedback(`Error: ${error.message}`, 'error');
+                    }
+                });
+                return;
+            }
+
+            const editUserBtn = e.target.closest('.edit-user-btn');
+            if (editUserBtn) {
+                const username = editUserBtn.dataset.username;
+                const user = state.users[username];
+                if (user) {
+                    modals.openUserModal(user, username, async (data, originalUsername) => {
+                        try {
+                            await api.updateUser(originalUsername, data);
+                            ui.showFeedback('Usuario actualizado con éxito.', 'success');
+                            await loadAndRenderUsers();
+                        } catch (error) {
+                            ui.showFeedback(`Error: ${error.message}`, 'error');
+                        }
+                    });
+                }
+                return;
+            }
+
+            const deleteUserBtn = e.target.closest('.delete-user-btn');
+            if (deleteUserBtn) {
+                const username = deleteUserBtn.dataset.username;
+                if (username === state.currentUser.username) {
+                    ui.showFeedback('No puedes eliminar tu propio usuario.', 'error');
+                    return;
+                }
+                modals.showConfirmationModal('Confirmar Eliminación', `¿Estás seguro de que quieres eliminar al usuario "${username}"?`, async () => {
+                    try {
+                        await api.deleteUser(username);
+                        ui.showFeedback('Usuario eliminado con éxito.', 'success');
+                        await loadAndRenderUsers();
+                    } catch (error) {
+                        ui.showFeedback(`Error: ${error.message}`, 'error');
+                    }
+                });
+                return;
+            }
+            // --- FIN DE MODIFICACIÓN ---
+
             const viewTicketBtn = e.target.closest('.view-ticket-btn');
             if (viewTicketBtn) {
                 const ticketId = viewTicketBtn.dataset.ticketId;

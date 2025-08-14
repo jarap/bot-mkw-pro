@@ -1,20 +1,11 @@
 // public/api.js
-// Módulo para gestionar todas las llamadas a la API del servidor.
-
-/**
- * Realiza una petición fetch y maneja la respuesta.
- * @param {string} url - La URL del endpoint.
- * @param {object} [options={}] - Opciones para la petición fetch (método, headers, body).
- * @returns {Promise<any>} Los datos de la respuesta en formato JSON.
- */
 async function fetchData(url, options = {}) {
     try {
         const response = await fetch(url, options);
-        if (!response.ok) {
-            const errorBody = await response.json();
-            throw new Error(errorBody.message || `HTTP error! status: ${response.status}`);
-        }
         const result = await response.json();
+        if (!response.ok) {
+            throw new Error(result.message || `HTTP error! status: ${response.status}`);
+        }
         if (result.success === false) {
              throw new Error(result.message || 'La API devolvió un error no exitoso.');
         }
@@ -25,27 +16,36 @@ async function fetchData(url, options = {}) {
     }
 }
 
-// --- Funciones de obtención de datos (GET) ---
+// --- Sesión y Usuarios ---
+export const getUserSession = () => fetchData('/api/user/session');
+export const getUsers = () => fetchData('/api/users');
+export const addUser = (data) => fetchData('/api/users', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+});
+export const updateUser = (username, data) => fetchData(`/api/users/${username}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+});
+export const deleteUser = (username) => fetchData(`/api/users/${username}`, { method: 'DELETE' });
 
+// --- Datos Generales (GET) ---
 export const getBotStatus = () => fetchData('/api/status');
 export const getTickets = () => fetchData('/api/tickets');
 export const getActiveSessions = () => fetchData('/api/activesessions');
 export const getSalesData = () => fetchData('/api/salesdata');
 export const getCompanyConfig = () => fetchData('/api/config/empresa');
 export const getVentasConfig = () => fetchData('/api/config/ventas');
+export const getSoporteConfig = () => fetchData('/api/config/soporte');
+export const getPagosConfig = () => fetchData('/api/config/pagos');
 export const getCalendarEvents = () => fetchData('/api/calendar/events');
 export const getCalendarEventsCount = (days) => fetchData(`/api/calendar/events/count?days=${days}`);
-export const getSoporteConfig = () => fetchData('/api/config/soporte');
 export const getAllMenuItems = () => fetchData('/api/menu-items');
-export const getPagosConfig = () => fetchData('/api/config/pagos');
-
-// --- INICIO DE NUEVA FUNCIONALIDAD ---
 export const getComprobantes = () => fetchData('/api/comprobantes');
-// --- FIN DE NUEVA FUNCIONALIDAD ---
 
-
-// --- Funciones de acción (POST, PUT, DELETE) ---
-
+// --- Acciones (POST, PUT, DELETE) ---
 export const connectBot = () => fetchData('/api/actions/connect', { method: 'POST' });
 export const disconnectBot = () => fetchData('/api/actions/disconnect', { method: 'POST' });
 export const sendManualMessage = (recipient, message) => fetchData('/api/actions/send-message', {
@@ -111,7 +111,6 @@ export const deleteMenuItem = (id) => fetchData(`/api/menu-items/${id}`, {
     method: 'DELETE',
 });
 
-// --- INICIO DE NUEVA FUNCIONALIDAD ---
 export const asignarPago = (comprobanteId, data) => fetchData(`/api/comprobantes/${comprobanteId}/asignar`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -121,4 +120,3 @@ export const asignarPago = (comprobanteId, data) => fetchData(`/api/comprobantes
 export const rechazarPago = (comprobanteId) => fetchData(`/api/comprobantes/${comprobanteId}/rechazar`, {
     method: 'POST',
 });
-// --- FIN DE NUEVA FUNCIONALIDAD ---
