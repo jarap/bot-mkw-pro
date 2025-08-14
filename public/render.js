@@ -464,13 +464,9 @@ export function renderComprobantes(tableBody, comprobantes) {
     comprobantes.forEach(item => {
         const row = tableBody.insertRow();
         
-        // --- INICIO DE CORRECCIÓN FINAL: Formato de Fecha ---
-        // Cuando los datos vienen de Firestore a través de JSON, el timestamp se convierte
-        // en un objeto con propiedades _seconds y _nanoseconds.
         const fecha = item.timestamp && item.timestamp._seconds 
             ? new Date(item.timestamp._seconds * 1000).toLocaleString('es-AR') 
             : 'N/A';
-        // --- FIN DE CORRECCIÓN FINAL ---
 
         const cliente = item.cliente?.nombre || 'Desconocido';
         const monto = item.resultadoIA?.monto ? `$${item.resultadoIA.monto}` : 'N/A';
@@ -485,7 +481,14 @@ export function renderComprobantes(tableBody, comprobantes) {
             fiabilidadHTML = `<span class="status-badge status-rechazado">${fiabilidad}%</span>`;
         }
         
-        const statusClass = (item.estado || 'n/a').toLowerCase().replace(/ /g, '-');
+        // --- INICIO DE CORRECCIÓN VISUAL ---
+        // Genera la clase CSS a partir del estado del item.
+        let statusClass = (item.estado || 'n/a').toLowerCase().replace(/ /g, '-');
+        // Si el estado es 'aprobado-(auto)', lo tratamos como 'aprobado' para que tome el color verde.
+        if (statusClass.includes('aprobado-(auto)')) {
+            statusClass = 'aprobado';
+        }
+        // --- FIN DE CORRECCIÓN VISUAL ---
 
         row.innerHTML = `
             <td>${fecha}</td>
