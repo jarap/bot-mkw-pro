@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('[PUNTO DE CONTROL] DOM cargado. Iniciando main.js...');
 
     let state = {
-        currentUser: null, // Almacenará el usuario y su rol
+        currentUser: null,
         tickets: [],
         receipts: [],
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] }, soporteFaqs: [] },
@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         pagosConfig: {},
         activeSessions: [],
         menuItems: [],
-        users: {} // <-- NUEVO: Estado para almacenar usuarios
+        users: {}
     };
 
     let calendarInstance = null;
@@ -51,12 +51,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         menuEditorContainer: document.getElementById('menu-editor-container'),
         scheduledVisitsValue: document.getElementById('scheduled-visits-value'),
         visitsFilterButtons: document.getElementById('visits-filter-buttons'),
-        // --- INICIO DE MODIFICACIÓN ---
         usersTableBody: document.getElementById('users-table-body'),
         addUserBtn: document.getElementById('add-user-btn'),
         userForm: document.getElementById('user-form')
-        // --- FIN DE MODIFICACIÓN ---
     };
+
+    // --- INICIO DE MODIFICACIÓN: Nueva función para actualizar la UI del usuario ---
+    function updateUserInfoInUI(user) {
+        if (!user) return;
+
+        const headerUsername = document.getElementById('header-username');
+        const headerUserRole = document.getElementById('header-user-role');
+
+        if (headerUsername) headerUsername.textContent = user.username;
+        if (headerUserRole) headerUserRole.textContent = user.role;
+    }
+    // --- FIN DE MODIFICACIÓN ---
 
     async function initializeSessionAndPermissions() {
         try {
@@ -69,6 +79,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (result.success) {
                 state.currentUser = result.data;
                 ui.applyRolePermissions(state.currentUser.role);
+                updateUserInfoInUI(state.currentUser); // <-- LLAMADA A LA NUEVA FUNCIÓN
                 return true;
             }
         } catch (error) {
@@ -113,11 +124,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN: Nueva función para cargar y renderizar usuarios ---
-    /**
-     * Carga la lista de usuarios desde la API y la renderiza en la tabla.
-     * Solo se ejecuta si el usuario es administrador.
-     */
     async function loadAndRenderUsers() {
         if (state.currentUser.role !== 'admin' || !dom.usersTableBody) return;
         try {
@@ -129,7 +135,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             dom.usersTableBody.innerHTML = `<tr><td colspan="3">Error al cargar usuarios: ${error.message}</td></tr>`;
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
 
     async function loadAndRenderCompanyConfig() {
         if (state.currentUser.role !== 'admin') return;
@@ -304,14 +309,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             'ajustes-zonas': forceReloadSalesData,
             'ajustes-faq-ventas': forceReloadSalesData,
             'ajustes-faq-soporte': forceReloadSalesData,
-            'ajustes-usuarios': loadAndRenderUsers, // <-- INICIO DE MODIFICACIÓN
+            'ajustes-usuarios': loadAndRenderUsers,
         };
         ui.initializeUINavigation(navigationCallbacks);
 
         modals.initializeModals();
 
         document.body.addEventListener('click', async (e) => {
-            // --- INICIO DE MODIFICACIÓN: Lógica para botones de usuarios ---
             const addUserBtn = e.target.closest('#add-user-btn');
             if (addUserBtn) {
                 modals.openUserModal(null, null, async (data) => {
@@ -362,7 +366,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 });
                 return;
             }
-            // --- FIN DE MODIFICACIÓN ---
 
             const viewTicketBtn = e.target.closest('.view-ticket-btn');
             if (viewTicketBtn) {

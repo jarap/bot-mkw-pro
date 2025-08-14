@@ -35,20 +35,17 @@
                     <h3>Configuración</h3>
                     <ul>
                         <li><a href="#" data-target="settings"><i class="fas fa-cog"></i><span>Ajustes Generales</span></a></li>
-                        <li><a href="#" data-target="ajustes-usuarios"><i class="fas fa-users-cog"></i><span>Gestión de Usuarios</span></a></li>
                     </ul>
                 </div>
             </nav>
+            <!-- INICIO DE MODIFICACIÓN: Eliminación del perfil de usuario del sidebar -->
             <div class="sidebar-footer">
-                <div class="user-profile-sidebar">
-                    <p>Usuario: <b id="sidebar-username">...</b></p>
-                    <small>Rol: <span id="sidebar-user-role">...</span></small>
-                </div>
                 <a href="/logout" class="logout-button">
                     <i class="fas fa-sign-out-alt"></i>
                     <span>Cerrar Sesión</span>
                 </a>
             </div>
+            <!-- FIN DE MODIFICACIÓN -->
         </aside>
 
         <main class="main-wrapper">
@@ -60,8 +57,8 @@
                     <i class="fas fa-bell header-icon"><span class="notification-dot"></span></i>
                     <div class="user-profile">
                         <div class="user-info">
-                            <p>Hola, <b id="header-username">Admin</b></p>
-                            <small id="header-user-role">Super Admin</small>
+                            <p>Hola, <b id="header-username">...</b></p>
+                            <small id="header-user-role">...</small>
                         </div>
                         <img src="https://via.placeholder.com/100" alt="Avatar">
                     </div>
@@ -239,7 +236,7 @@
                     </div>
                 </section>
 
-                <!-- Settings Sections (Admin Only) -->
+                <!-- Settings Section (Admin Only) -->
                 <section id="settings" class="main-section admin-only">
                     <div class="card">
                         <div class="card-header"><h3>Ajustes Generales del Bot</h3></div>
@@ -254,17 +251,21 @@
                                 <div class="settings-card" data-target="ajustes-zonas"><div class="settings-icon"><i class="fas fa-map-marked-alt"></i></div><span>Zonas de Cobertura</span></div>
                                 <div class="settings-card" data-target="ajustes-faq-ventas"><div class="settings-icon"><i class="fas fa-question-circle"></i></div><span>FAQs de Ventas</span></div>
                                 <div class="settings-card" data-target="ajustes-faq-soporte"><div class="settings-icon"><i class="fas fa-headset"></i></div><span>FAQs de Soporte</span></div>
+                                <div class="settings-card" data-target="ajustes-usuarios"><div class="settings-icon"><i class="fas fa-users-cog"></i></div><span>Gestión de Usuarios</span></div>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                <!-- NUEVA SECCIÓN: Gestión de Usuarios (Admin Only) -->
+                <!-- SECCIÓN GESTIÓN DE USUARIOS (ahora es una vista separada) -->
                 <section id="ajustes-usuarios" class="main-section admin-only">
                     <div class="card">
                         <div class="card-header">
                             <h4>Gestión de Usuarios</h4>
-                            <button id="add-user-btn" class="action-btn-small"><i class="fas fa-plus"></i> Añadir Usuario</button>
+                            <div>
+                                <button id="add-user-btn" class="action-btn-small"><i class="fas fa-plus"></i> Añadir Usuario</button>
+                                <button class="action-btn-small back-to-settings"><i class="fas fa-arrow-left"></i> Regresar a Ajustes</button>
+                            </div>
                         </div>
                         <div class="card-body" style="overflow-x: auto;">
                             <table class="tickets-table">
@@ -530,13 +531,13 @@
                 <div class="modal-body modern-form">
                     <input type="hidden" id="user-form-username-original">
                     <label for="user-form-username">Username</label>
-                    <input type="text" id="user-form-username" required>
+                    <input type="text" id="user-form-username" name="username" required>
                     
-                    <label for="user-form-password">Contraseña (dejar en blanco para no cambiar)</label>
-                    <input type="password" id="user-form-password">
+                    <label for="user-form-password">Contraseña</label>
+                    <input type="password" id="user-form-password" name="password">
 
                     <label for="user-form-role">Rol</label>
-                    <select id="user-form-role" required>
+                    <select id="user-form-role" name="role" required>
                         <option value="operator">Operador</option>
                         <option value="supervisor">Supervisor</option>
                         <option value="admin">Administrador</option>

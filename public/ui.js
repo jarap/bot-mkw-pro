@@ -84,8 +84,14 @@ export function initializeUINavigation(callbacks) {
     const backToSettingsButtons = document.querySelectorAll('.back-to-settings');
     const clickableKpis = document.querySelectorAll('.clickable-kpi');
 
-    const handleNavigation = (targetId) => {
+    const handleNavigation = (targetId, clickedElement) => {
         navigateToTab(targetId);
+        
+        navLinks.forEach(l => l.parentElement.classList.remove('active'));
+        if (clickedElement) {
+            clickedElement.closest('li').classList.add('active');
+        }
+
         if (callbacks[targetId]) {
             callbacks[targetId]();
         }
@@ -94,22 +100,24 @@ export function initializeUINavigation(callbacks) {
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
-            navLinks.forEach(l => l.parentElement.classList.remove('active'));
-            link.parentElement.classList.add('active');
-            handleNavigation(link.dataset.target);
+            handleNavigation(link.dataset.target, link);
         });
     });
 
     settingsCards.forEach(card => {
         card.addEventListener('click', () => {
-            handleNavigation(card.dataset.target);
+            const targetId = card.dataset.target;
+            // No necesitamos resaltar el menú aquí, solo navegar
+            handleNavigation(targetId, null);
         });
     });
 
     backToSettingsButtons.forEach(button => {
         button.addEventListener('click', (e) => {
             e.preventDefault();
-            handleNavigation('settings');
+            const targetId = button.dataset.target || 'settings';
+            const targetLink = document.querySelector(`.sidebar-nav a[data-target="${targetId}"]`);
+            handleNavigation(targetId, targetLink);
         });
     });
 
@@ -119,7 +127,9 @@ export function initializeUINavigation(callbacks) {
             const filter = kpi.dataset.filter;
             if (targetTab) {
                 const correspondingLink = document.querySelector(`.sidebar-nav a[data-target="${targetTab}"]`);
-                correspondingLink?.click();
+                if (correspondingLink) {
+                    handleNavigation(targetTab, correspondingLink);
+                }
             }
             if (filter === 'open') {
                 const openFilterButton = document.querySelector('#ticket-filter-buttons .filter-btn[data-status="Pendiente"]');
@@ -190,24 +200,16 @@ export function showFeedback(message, type = 'info') {
     }, 4000);
 }
 
-/**
- * Aplica permisos visuales basados en el rol del usuario.
- * Oculta elementos que no corresponden al rol actual.
- * @param {string} role - El rol del usuario ('admin', 'supervisor', 'operator').
- */
 export function applyRolePermissions(role) {
     console.log(`Aplicando permisos para el rol: ${role}`);
 
     const adminOnlyElements = document.querySelectorAll('.admin-only');
     const supervisorOnlyElements = document.querySelectorAll('.supervisor-only');
 
-    // Lógica de ocultación
     if (role === 'operator') {
         adminOnlyElements.forEach(el => el.style.display = 'none');
         supervisorOnlyElements.forEach(el => el.style.display = 'none');
     } else if (role === 'supervisor') {
         adminOnlyElements.forEach(el => el.style.display = 'none');
-        // Los supervisores SÍ ven los elementos .supervisor-only, por lo que no se ocultan.
     }
-    // Si es admin, no se oculta nada.
 }
