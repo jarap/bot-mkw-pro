@@ -9,17 +9,13 @@ try {
     if (!getApps().length) {
         initializeApp({
             credential: cert(serviceAccount),
-            // --- INICIO DE CORRECCIÓN ---
-            // Se corrige el nombre del bucket al que apunta el servicio de storage.
             storageBucket: `mkw-bot.firebasestorage.app`
-            // --- FIN DE CORRECCIÓN ---
         });
     }
 
     const db = getFirestore();
     console.log(chalk.green('✅ Conectado exitosamente a Cloud Firestore.'));
 
-    // (El resto del archivo permanece exactamente igual)
     const ticketsCollection = db.collection('tickets');
     const planesCollection = db.collection('planes');
     const promosCollection = db.collection('promociones');
@@ -29,6 +25,28 @@ try {
     const soporteFaqsCollection = db.collection('soporteFAQ');
     const menuItemsCollection = db.collection('menuItems');
     const comprobantesCollection = db.collection('comprobantesRecibidos');
+
+    // --- INICIO DE MODIFICACIÓN: Nueva función auxiliar ---
+    /**
+     * Obtiene un único documento de comprobante por su ID.
+     * @param {string} comprobanteId - El ID del documento en Firestore.
+     * @returns {Promise<object|null>} El objeto del comprobante o null si no se encuentra.
+     */
+    async function getComprobanteById(comprobanteId) {
+        try {
+            const docRef = comprobantesCollection.doc(comprobanteId);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) {
+                return { id: docSnap.id, ...docSnap.data() };
+            }
+            console.warn(chalk.yellow(`   -> No se encontró el comprobante con ID: ${comprobanteId}`));
+            return null;
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al obtener el comprobante por ID ${comprobanteId}:`), error);
+            return null;
+        }
+    }
+    // --- FIN DE MODIFICACIÓN ---
 
     async function getMenuItemById(itemId) {
         try {
@@ -488,7 +506,8 @@ Sigue estas reglas estrictamente:
         getAllComprobantes,
         updateComprobante,
         getPagosConfig,
-        updatePagosConfig
+        updatePagosConfig,
+        getComprobanteById, // Exportamos la nueva función
     };
 
 } catch (error) {

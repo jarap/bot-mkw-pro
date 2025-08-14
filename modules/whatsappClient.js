@@ -17,7 +17,7 @@ const supportGroupPool = {};
 const TIMEOUT_MS = 15 * 60 * 1000;
 const STATE_TTL_SECONDS = 3600; // 1 hora
 const SALES_LEADS_GROUP_ID = process.env.SALES_LEADS_GROUP_ID;
-const AWAIT_DNI_TTL_SECONDS = 60; // 60 segundos de espera para el DNI
+const AWAIT_DNI_TTL_SECONDS = 120; // 120 segundos de espera para el DNI
 
 const storage = getStorage();
 
@@ -104,14 +104,6 @@ class WhatsAppClient extends EventEmitter {
         }
     }
 
-    // --- INICIO DE MODIFICACIÓN: Nueva función para imputación automática ---
-    /**
-     * Intenta asignar un pago automáticamente en MikroWISP si la fiabilidad es alta.
-     * @param {object} clientData - Los datos del cliente de MikroWISP.
-     * @param {object} iaResult - El resultado del análisis de la IA.
-     * @param {string} comprobanteId - El ID del documento del comprobante en Firestore.
-     * @param {string} clientChatId - El ID del chat del cliente para enviarle notificaciones.
-     */
     async intentarAsignacionAutomatica(clientData, iaResult, comprobanteId, clientChatId) {
         const dniCliente = clientData?.cedula;
         if (!dniCliente) {
@@ -122,7 +114,6 @@ class WhatsAppClient extends EventEmitter {
         console.log(chalk.cyan(`   -> Iniciando proceso de asignación automática para DNI: ${dniCliente}`));
 
         try {
-            // 1. Buscar facturas pendientes
             const facturasResult = await llamarScriptExterno('scripts/factura_mkw.js', ['listar', dniCliente]);
             if (!facturasResult.success || !facturasResult.facturas || facturasResult.facturas.length === 0) {
                 await firestoreHandler.updateComprobante(comprobanteId, { estado: 'Error de Auto-Imputación', detallesError: 'No se encontraron facturas pendientes.' });
@@ -131,23 +122,20 @@ class WhatsAppClient extends EventEmitter {
                 return;
             }
 
-            // 2. Seleccionar la factura más antigua y los datos de la IA
             const facturaAPagar = facturasResult.facturas[0];
             const montoIA = iaResult.monto;
             const fechaIA = iaResult.fecha;
             const referenciaIA = iaResult.referencia || `BOT-${Date.now()}`;
 
-            // 3. Imputar el pago en MikroWISP
             console.log(chalk.cyan(`      -> Intentando imputar $${montoIA} a la factura #${facturaAPagar.id_factura}...`));
             const pagoResult = await llamarScriptExterno('scripts/asignar_pago_mkw.js', [
                 facturaAPagar.id_factura,
                 montoIA,
                 fechaIA,
-                'Transferencia Bot', // Método de pago
+                'Transferencia Bot',
                 referenciaIA
             ]);
 
-            // 4. Manejar el resultado
             if (pagoResult.success) {
                 await firestoreHandler.updateComprobante(comprobanteId, { estado: 'Aprobado (Auto)' });
                 await this.client.sendMessage(clientChatId, `✅ ¡Listo! Tu pago de $${montoIA} fue imputado correctamente a la factura #${facturaAPagar.id_factura}. ¡Muchas gracias!`);
@@ -164,7 +152,6 @@ class WhatsAppClient extends EventEmitter {
             this.emit('receiptsUpdate');
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
 
     async procesarComprobanteRecibido(message) {
         const chatId = message.from;
@@ -242,17 +229,14 @@ class WhatsAppClient extends EventEmitter {
                     const fiabilidad = iaResult.confiabilidad_porcentaje || 0;
                     let responseMsg = `¡Análisis completo! 👍\n\n*Entidad:* ${iaResult.entidad || 'N/A'}\n*Monto:* $${iaResult.monto || 'N/A'}\n*Fecha:* ${iaResult.fecha || 'N/A'}\n\n*Fiabilidad:* ${fiabilidad}%\n\n`;
                     
-                    // --- INICIO DE MODIFICACIÓN: Llamada a la imputación automática ---
                     if (fiabilidad >= umbral) {
                         responseMsg += "La fiabilidad es alta. Intentaremos procesar tu pago automáticamente. Te notificaremos el resultado en un momento...";
                         await this.client.sendMessage(chatId, responseMsg);
-                        // Llamamos a la nueva función en segundo plano. No es necesario esperar (await) aquí.
                         this.intentarAsignacionAutomatica(clientResult.data, iaResult, logResult.id, chatId);
                     } else {
                         responseMsg += "La fiabilidad es baja. Un agente revisará tu comprobante a la brevedad para confirmar el pago.";
                         await this.client.sendMessage(chatId, responseMsg);
                     }
-                    // --- FIN DE MODIFICACIÓN ---
                 }
             }
             
@@ -333,6 +317,7 @@ class WhatsAppClient extends EventEmitter {
             return;
         }
 
+        // --- INICIO DE CORRECCIÓN: Flujo de Comprobante No Identificado ---
         if (currentState && currentState.step === 'awaiting_dni_for_receipt') {
             const dni = userMessage.replace(/[.,\-\s]/g, '');
             const clientResult = await getClientDetails(dni);
@@ -341,14 +326,31 @@ class WhatsAppClient extends EventEmitter {
                 const clientData = clientResult.data;
                 const clientInfo = { id: clientData.id, nombre: clientData.nombre, cedula: clientData.cedula };
                 await firestoreHandler.updateComprobante(currentState.lastReceiptId, { cliente: clientInfo, estado: 'Pendiente' });
-                await this.client.sendMessage(chatId, `¡Gracias, ${clientData.nombre}! Hemos asociado el comprobante a tu cuenta. Un agente lo revisará a la brevedad.`);
+                
+                // Ahora, verificamos si podemos intentar la auto-imputación
+                const comprobante = await firestoreHandler.getComprobanteById(currentState.lastReceiptId);
+                const configResult = await firestoreHandler.getPagosConfig();
+                const umbral = configResult.data.umbralFiabilidad;
+                const iaResult = comprobante?.resultadoIA;
+
+                if (iaResult && (iaResult.confiabilidad_porcentaje || 0) >= umbral) {
+                    await this.client.sendMessage(chatId, `¡Gracias, ${clientData.nombre}! Hemos asociado el comprobante. Como la fiabilidad es alta, intentaré procesar el pago automáticamente...`);
+                    // Ejecutamos la asignación automática
+                    this.intentarAsignacionAutomatica(clientData, iaResult, currentState.lastReceiptId, chatId);
+                } else {
+                    // Si la fiabilidad es baja o hay error, se mantiene el flujo manual
+                    await this.client.sendMessage(chatId, `¡Gracias, ${clientData.nombre}! Hemos asociado el comprobante a tu cuenta. Un agente lo revisará a la brevedad.`);
+                }
+                
                 await redisClient.del(`state:${chatId}`);
                 this.emit('receiptsUpdate');
+
             } else {
                 await this.client.sendMessage(chatId, "No pude encontrar una cuenta con ese DNI. Por favor, verifica el número e inténtalo de nuevo. El comprobante será revisado manualmente por un operador.");
             }
-            return;
+            return; // Finalizamos el flujo aquí
         }
+        // --- FIN DE CORRECCIÓN ---
         
         if (!currentState) {
             const phoneNumber = chatId.replace('@c.us', '').slice(-10);
