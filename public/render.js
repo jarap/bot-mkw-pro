@@ -1,12 +1,6 @@
 // public/render.js
 // Módulo para renderizar (dibujar) HTML en el DOM.
 
-// --- INICIO DE MODIFICACIÓN: Nueva función para renderizar usuarios ---
-/**
- * Dibuja las filas de la tabla de gestión de usuarios.
- * @param {HTMLElement} tableBody - El tbody de la tabla.
- * @param {object} users - El objeto de usuarios.
- */
 export function renderUsers(tableBody, users) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
@@ -28,15 +22,7 @@ export function renderUsers(tableBody, users) {
         `;
     }
 }
-// --- FIN DE MODIFICACIÓN ---
 
-
-/**
- * Función auxiliar para construir un árbol jerárquico a partir de una lista plana de items.
- * @param {Array} items - La lista de todos los items de menú.
- * @param {string} parentId - El ID del padre para empezar a construir el árbol.
- * @returns {Array} Un array de nodos de árbol, con sus hijos anidados.
- */
 function buildMenuTree(items, parentId = 'root') {
     const tree = items
         .filter(item => item.parent === parentId)
@@ -49,11 +35,6 @@ function buildMenuTree(items, parentId = 'root') {
     return tree;
 }
 
-/**
- * Función auxiliar recursiva para dibujar el HTML del árbol de menús.
- * @param {Array} nodes - Los nodos del árbol a renderizar.
- * @returns {string} El HTML del árbol.
- */
 function renderTreeHTML(nodes) {
     if (!nodes || nodes.length === 0) return '';
     
@@ -77,11 +58,6 @@ function renderTreeHTML(nodes) {
     return html;
 }
 
-/**
- * Dibuja la interfaz principal del editor de menús jerárquico.
- * @param {HTMLElement} container - El div donde se renderizará el editor.
- * @param {Array} allItems - La lista plana de todos los items de menú.
- */
 export function renderMenuEditor(container, allItems) {
     if (!container) return;
 
@@ -97,13 +73,6 @@ export function renderMenuEditor(container, allItems) {
     `;
 }
 
-
-/**
- * Dibuja el contenido del modal para añadir/editar un item de menú.
- * @param {HTMLElement} formFieldsEl - El contenedor de los campos del formulario.
- * @param {object} [itemData={}] - Los datos del item si se está editando.
- * @param {string} parentId - El ID del padre del item que se está creando/editando.
- */
 export function renderMenuItemModal(formFieldsEl, itemData = {}, parentId) {
     const actionTypes = ['submenu', 'reply', 'create_ticket', 'pay_invoice'];
 
@@ -413,8 +382,10 @@ export function renderVentasConfigForm(form, config) {
 export function renderSoporteConfigForm(form, config) {
     if (!form) return;
     
+    // --- INICIO DE MODIFICACIÓN ---
     const isVoiceEnabled = config.respuestasPorVozActivas === true;
 
+    // Se reemplaza el único textarea por un formulario estructurado.
     form.innerHTML = `
         <div class="form-group toggle-group">
             <div>
@@ -427,6 +398,28 @@ export function renderSoporteConfigForm(form, config) {
             </label>
         </div>
         <hr style="margin: 1.5rem 0;">
+        
+        <div class="form-group">
+            <label for="soporte-personalidad">Personalidad del Bot</label>
+            <textarea id="soporte-personalidad" name="personalidad" rows="3">${config.personalidad || ''}</textarea>
+            <small>Define el tono y el rol del bot. Ej: "Sos I-Bot, un asistente amable y eficiente..."</small>
+        </div>
+
+        <div class="form-group">
+            <label for="soporte-instruccionesDiagnostico">Instrucciones del Proceso de Diagnóstico</label>
+            <textarea id="soporte-instruccionesDiagnostico" name="instruccionesDiagnostico" rows="10">${config.instruccionesDiagnostico || ''}</textarea>
+            <small>Describe los pasos que la IA debe seguir para diagnosticar y resolver problemas. El sistema le pedirá a la IA que emita una señal secreta para escalar si estas instrucciones fallan.</small>
+        </div>
+
+        <div class="form-group">
+            <label for="soporte-mensajeEscalamiento">Mensaje de Escalamiento a un Agente</label>
+            <textarea id="soporte-mensajeEscalamiento" name="mensajeEscalamiento" rows="3">${config.mensajeEscalamiento || ''}</textarea>
+            <small>Este es el mensaje que se mostrará al cliente cuando el bot no pueda resolver el problema y lo derive a un agente. El sistema creará el ticket automáticamente.</small>
+        </div>
+
+        <hr style="margin: 1.5rem 0;">
+        <h4 style="margin-bottom: 1rem;">Prompts Auxiliares</h4>
+
         <div class="form-group">
             <label for="soporte-promptAnalisisSentimiento">Prompt para Análisis de Sentimiento</label>
             <textarea id="soporte-promptAnalisisSentimiento" name="promptAnalisisSentimiento" rows="5">${config.promptAnalisisSentimiento || ''}</textarea>
@@ -437,13 +430,9 @@ export function renderSoporteConfigForm(form, config) {
             <textarea id="soporte-promptIntencionGeneral" name="promptIntencionGeneral" rows="8">${config.promptIntencionGeneral || ''}</textarea>
             <small>Variable disponible: <code>{userMessage}</code></small>
         </div>
-        <div class="form-group">
-            <label for="soporte-promptRespuestaSoporte">Prompt para Respuestas de Soporte</label>
-            <textarea id="soporte-promptRespuestaSoporte" name="promptRespuestaSoporte" rows="15">${config.promptRespuestaSoporte || ''}</textarea>
-            <small>Variables disponibles: <code>{knowledgeString}</code>, <code>{chatHistory}</code>, <code>{userMessage}</code></small>
-        </div>
-        <button type="submit">Guardar Prompts de Soporte</button>
+        <button type="submit">Guardar Configuración de Soporte</button>
     `;
+    // --- FIN DE MODIFICACIÓN ---
 }
 
 export function renderPagosConfigForm(form, config) {
@@ -478,11 +467,6 @@ export function renderPagosConfigForm(form, config) {
     `;
 }
 
-/**
- * Dibuja las filas de la tabla del historial de comprobantes.
- * @param {HTMLElement} tableBody - El tbody de la tabla.
- * @param {Array} comprobantes - La lista de comprobantes.
- */
 export function renderComprobantes(tableBody, comprobantes) {
     if (!tableBody) return;
     tableBody.innerHTML = '';
@@ -511,14 +495,10 @@ export function renderComprobantes(tableBody, comprobantes) {
             fiabilidadHTML = `<span class="status-badge status-rechazado">${fiabilidad}%</span>`;
         }
         
-        // --- INICIO DE CORRECCIÓN VISUAL ---
-        // Genera la clase CSS a partir del estado del item.
         let statusClass = (item.estado || 'n/a').toLowerCase().replace(/ /g, '-');
-        // Si el estado es 'aprobado-(auto)', lo tratamos como 'aprobado' para que tome el color verde.
         if (statusClass.includes('aprobado-(auto)')) {
             statusClass = 'aprobado';
         }
-        // --- FIN DE CORRECCIÓN VISUAL ---
 
         row.innerHTML = `
             <td>${fecha}</td>

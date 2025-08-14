@@ -317,7 +317,6 @@ class WhatsAppClient extends EventEmitter {
             return;
         }
 
-        // --- INICIO DE CORRECCIÓN: Flujo de Comprobante No Identificado ---
         if (currentState && currentState.step === 'awaiting_dni_for_receipt') {
             const dni = userMessage.replace(/[.,\-\s]/g, '');
             const clientResult = await getClientDetails(dni);
@@ -327,7 +326,6 @@ class WhatsAppClient extends EventEmitter {
                 const clientInfo = { id: clientData.id, nombre: clientData.nombre, cedula: clientData.cedula };
                 await firestoreHandler.updateComprobante(currentState.lastReceiptId, { cliente: clientInfo, estado: 'Pendiente' });
                 
-                // Ahora, verificamos si podemos intentar la auto-imputación
                 const comprobante = await firestoreHandler.getComprobanteById(currentState.lastReceiptId);
                 const configResult = await firestoreHandler.getPagosConfig();
                 const umbral = configResult.data.umbralFiabilidad;
@@ -335,10 +333,8 @@ class WhatsAppClient extends EventEmitter {
 
                 if (iaResult && (iaResult.confiabilidad_porcentaje || 0) >= umbral) {
                     await this.client.sendMessage(chatId, `¡Gracias, ${clientData.nombre}! Hemos asociado el comprobante. Como la fiabilidad es alta, intentaré procesar el pago automáticamente...`);
-                    // Ejecutamos la asignación automática
                     this.intentarAsignacionAutomatica(clientData, iaResult, currentState.lastReceiptId, chatId);
                 } else {
-                    // Si la fiabilidad es baja o hay error, se mantiene el flujo manual
                     await this.client.sendMessage(chatId, `¡Gracias, ${clientData.nombre}! Hemos asociado el comprobante a tu cuenta. Un agente lo revisará a la brevedad.`);
                 }
                 
@@ -348,9 +344,8 @@ class WhatsAppClient extends EventEmitter {
             } else {
                 await this.client.sendMessage(chatId, "No pude encontrar una cuenta con ese DNI. Por favor, verifica el número e inténtalo de nuevo. El comprobante será revisado manualmente por un operador.");
             }
-            return; // Finalizamos el flujo aquí
+            return;
         }
-        // --- FIN DE CORRECCIÓN ---
         
         if (!currentState) {
             const phoneNumber = chatId.replace('@c.us', '').slice(-10);
@@ -475,18 +470,25 @@ class WhatsAppClient extends EventEmitter {
             chatHistory.push({ role: 'user', parts: [{ text: userMessage }] });
             const faqResponse = await iaHandler.answerSupportQuestion(chatHistory);
             
-            if (faqResponse.includes("[NO_ANSWER]")) {
-                const apologyMessage = faqResponse.replace("[NO_ANSWER]", "").trim();
-                if (apologyMessage) {
-                    await this.sendAiResponse(chatId, apologyMessage);
-                }
+            // --- INICIO DE MODIFICACIÓN ---
+            // Se reemplaza la lógica de [NO_ANSWER] por la de [ESCALATE_TICKET].
+            if (faqResponse.includes("[ESCALATE_TICKET]")) {
+                // Si la IA emite la señal, obtenemos el mensaje amigable y creamos el ticket.
+                const configResult = await firestoreHandler.getSoporteConfig();
+                const escalationMessage = configResult.success 
+                    ? configResult.data.mensajeEscalamiento 
+                    : "Un momento, por favor. Te derivaré con un agente de soporte."; // Mensaje de fallback
+                
+                await this.sendAiResponse(chatId, escalationMessage);
                 await this.createSupportTicket(chatId, userMessage, currentState.clientData);
             } else {
+                // Si no hay señal, la conversación con la IA continúa normalmente.
                 await this.sendAiResponse(chatId, faqResponse);
                 currentState.chatHistory = chatHistory;
                 currentState.chatHistory.push({ role: 'model', parts: [{ text: faqResponse }] });
                 await redisClient.set(`state:${chatId}`, currentState, STATE_TTL_SECONDS);
             }
+            // --- FIN DE MODIFICACIÓN ---
         }
     }
     
@@ -758,7 +760,7 @@ class WhatsAppClient extends EventEmitter {
             
             await this.client.sendMessage(clientChatId, '✅ Tu solicitud ha sido enviada. Un agente la tomará en breve.');
             this.emit('sessionsUpdate');
-            await redisClient.set(`state:${chatId}`, { awaiting_agent: true }, STATE_TTL_SECONDS);
+            await redisClient.set(`state:${clientChatId}`, { awaiting_agent: true }, STATE_TTL_SECONDS);
         } catch (error) {
             console.error(chalk.red.bold('❌ ERROR CRÍTICO al crear ticket:'), error);
             await this.client.sendMessage(clientChatId, 'Lo siento, tuvimos un problema interno al crear tu solicitud.');

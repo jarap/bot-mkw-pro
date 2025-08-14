@@ -14,47 +14,29 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY, auth);
 const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 const ttsClient = new textToSpeech.TextToSpeechClient({ auth });
 
-// --- INICIO DE NUEVA FUNCIONALIDAD: GESTIÓN DE REINTENTOS ---
-
-/**
- * Función auxiliar para introducir una pausa.
- * @param {number} ms - Milisegundos a esperar.
- * @returns {Promise}
- */
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-/**
- * Llama a la API de Gemini con una estrategia de reintentos con espera exponencial.
- * @param {Function} apiCall - La función asíncrona que realiza la llamada a la API.
- * @returns {Promise<any>} El resultado de la llamada a la API.
- * @throws {Error} Si la llamada falla después de todos los reintentos.
- */
 async function callGenerativeAIWithRetry(apiCall) {
     let attempts = 0;
     const maxAttempts = 5;
-    let delayTime = 8000; // Empezar con 2 segundos
+    let delayTime = 8000; 
 
     while (attempts < maxAttempts) {
         try {
-            return await apiCall(); // Intenta hacer la llamada
+            return await apiCall();
         } catch (error) {
             attempts++;
-            // Si el error es por sobrecarga (503) y aún tenemos intentos, esperamos y reintentamos.
             if (error.status === 503 && attempts < maxAttempts) {
                 console.warn(chalk.yellow(`   -> API sobrecargada (intento ${attempts}/${maxAttempts}). Reintentando en ${delayTime / 1000}s...`));
                 await delay(delayTime);
-                delayTime *= 2; // Duplica el tiempo de espera para el siguiente intento
+                delayTime *= 2;
             } else {
-                // Si es otro tipo de error o se acabaron los intentos, lanzamos el error.
                 console.error(chalk.red(`❌ Error final en la llamada a la API después de ${attempts} intentos:`), error);
-                throw error; // Lanza el error para que la función que llamó lo maneje
+                throw error;
             }
         }
     }
 }
-
-// --- FIN DE NUEVA FUNCIONALIDAD ---
-
 
 async function analizarComprobante(archivoBase64, mimeType, promptPersonalizado) {
     console.log(chalk.cyan(`   -> Analizando comprobante (${mimeType}) con Gemini...`));
@@ -106,11 +88,6 @@ async function sintetizarVoz(text) {
         return null;
     }
 }
-
-// (El resto de las funciones que usan la IA también se modificarían para usar callGenerativeAIWithRetry)
-// Por brevedad, se muestra solo la modificación principal en analizarComprobante y transcribirAudio.
-
-// ... (resto del archivo sin cambios) ...
 
 async function buildKnowledgeBase() {
     console.log(chalk.cyan('   -> Construyendo base de conocimiento desde Firestore...'));
@@ -231,8 +208,13 @@ async function analizarConfirmacion(userMessage) {
 }
 
 async function analizarIntencionGeneral(userMessage) {
+    const configResult = await firestoreHandler.getSoporteConfig();
+    if (!configResult.success) {
+        console.error(chalk.red('❌ Error crítico: No se pudo cargar la configuración de soporte para analizar intención. Escalando a pregunta general.'));
+        return 'pregunta_general'; // Valor por defecto seguro
+    }
+
     try {
-        const configResult = await firestoreHandler.getSoporteConfig();
         const promptTemplate = configResult.data.promptIntencionGeneral;
         const prompt = promptTemplate.replace('{userMessage}', userMessage);
 
@@ -248,8 +230,13 @@ async function analizarIntencionGeneral(userMessage) {
 }
 
 async function analizarSentimiento(userMessage) {
+    const configResult = await firestoreHandler.getSoporteConfig();
+    if (!configResult.success) {
+        console.error(chalk.red('❌ Error crítico: No se pudo cargar la configuración de soporte para analizar sentimiento. Usando "neutro".'));
+        return 'neutro'; // Valor por defecto seguro
+    }
+
     try {
-        const configResult = await firestoreHandler.getSoporteConfig();
         const promptTemplate = configResult.data.promptAnalisisSentimiento;
         const prompt = promptTemplate.replace('{userMessage}', userMessage);
         
@@ -265,12 +252,22 @@ async function analizarSentimiento(userMessage) {
 }
 
 async function answerSupportQuestion(chatHistory) {
+    // --- INICIO DE MODIFICACIÓN ---
+    // 1. Cargar la configuración y verificar si es exitosa.
+    const configResult = await firestoreHandler.getSoporteConfig();
+    if (!configResult.success) {
+        console.error(chalk.red('❌ Error crítico: No se pudo cargar la configuración de soporte desde Firestore. Escalando a ticket.'));
+        return '[ESCALATE_TICKET]'; // Devuelve la señal de control para crear un ticket.
+    }
+    const config = configResult.data;
+    // --- FIN DE MODIFICACIÓN ---
+
     try {
         console.log(chalk.cyan('   -> Buscando respuesta en FAQs de Soporte con historial...'));
         const supportFaqs = await firestoreHandler.getSupportFaqs();
 
         if (supportFaqs.length === 0) {
-            return "[NO_ANSWER]";
+            return "[ESCALATE_TICKET]";
         }
 
         let knowledgeString = "Preguntas Frecuentes de Soporte:\n";
@@ -281,13 +278,27 @@ async function answerSupportQuestion(chatHistory) {
         const userMessage = chatHistory[chatHistory.length - 1].parts[0].text;
         const modelHistory = chatHistory.slice(0, -1);
         
-        const configResult = await firestoreHandler.getSoporteConfig();
-        let systemPrompt = configResult.data.promptRespuestaSoporte;
+        // --- INICIO DE MODIFICACIÓN ---
+        // 2. Ensamblar el prompt final usando la configuración estructurada.
+        const finalSystemPrompt = `${config.personalidad}
 
-        systemPrompt = systemPrompt
-            .replace('{knowledgeString}', knowledgeString)
-            .replace('{chatHistory}', JSON.stringify(modelHistory))
-            .replace('{userMessage}', userMessage);
+**Tu Proceso de Diagnóstico (Seguí estos pasos en orden):**
+${config.instruccionesDiagnostico}
+
+**Base de Conocimiento (ÚNICA fuente de verdad):**
+---
+${knowledgeString}
+---
+
+**Historial de la Conversación (para entender el contexto):**
+---
+${JSON.stringify(modelHistory)}
+---
+
+**Pregunta del Cliente:**
+${userMessage}
+`;
+        // --- FIN DE MODIFICACIÓN ---
 
         const chat = model.startChat({
             history: [
@@ -297,7 +308,7 @@ async function answerSupportQuestion(chatHistory) {
             ]
         });
 
-        const apiCall = () => chat.sendMessage(systemPrompt);
+        const apiCall = () => chat.sendMessage(finalSystemPrompt);
         const result = await callGenerativeAIWithRetry(apiCall);
         const response = await result.response;
         return response.text().trim();

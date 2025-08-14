@@ -25,17 +25,8 @@ try {
     const soporteFaqsCollection = db.collection('soporteFAQ');
     const menuItemsCollection = db.collection('menuItems');
     const comprobantesCollection = db.collection('comprobantesRecibidos');
-    // --- INICIO DE MODIFICACIÓN ---
     const usersCollection = db.collection('users');
-    // --- FIN DE MODIFICACIÓN ---
 
-    // --- INICIO DE MODIFICACIÓN: Funciones para la gestión de usuarios en Firestore ---
-
-    /**
-     * Obtiene un usuario por su nombre de usuario (que es el ID del documento).
-     * @param {string} username - El nombre de usuario a buscar.
-     * @returns {Promise<object|null>} El objeto del usuario o null si no se encuentra.
-     */
     async function getUserByUsername(username) {
         try {
             const docRef = usersCollection.doc(username);
@@ -50,10 +41,6 @@ try {
         }
     }
 
-    /**
-     * Obtiene todos los usuarios de la colección.
-     * @returns {Promise<{success: boolean, data?: object, message?: string}>}
-     */
     async function getAllUsers() {
         try {
             const snapshot = await usersCollection.get();
@@ -71,12 +58,6 @@ try {
         }
     }
 
-    /**
-     * Añade un nuevo usuario. El ID del documento será el nombre de usuario.
-     * @param {string} username - El nombre de usuario.
-     * @param {object} userData - Los datos del usuario (password, role).
-     * @returns {Promise<{success: boolean, message?: string}>}
-     */
     async function addUser(username, userData) {
         try {
             await usersCollection.doc(username).set(userData);
@@ -87,12 +68,6 @@ try {
         }
     }
 
-    /**
-     * Actualiza los datos de un usuario.
-     * @param {string} username - El nombre de usuario a actualizar.
-     * @param {object} userData - Los nuevos datos para el usuario.
-     * @returns {Promise<{success: boolean, message?: string}>}
-     */
     async function updateUser(username, userData) {
         try {
             await usersCollection.doc(username).update(userData);
@@ -103,11 +78,6 @@ try {
         }
     }
 
-    /**
-     * Elimina un usuario por su nombre de usuario.
-     * @param {string} username - El nombre de usuario a eliminar.
-     * @returns {Promise<{success: boolean, message?: string}>}
-     */
     async function deleteUser(username) {
         try {
             await usersCollection.doc(username).delete();
@@ -117,9 +87,6 @@ try {
             return { success: false, message: error.message };
         }
     }
-
-    // --- FIN DE MODIFICACIÓN ---
-
 
     async function getComprobanteById(comprobanteId) {
         try {
@@ -401,59 +368,18 @@ try {
         try {
             const docRef = configCollection.doc('soporte');
             const doc = await docRef.get();
-            const defaultConfig = {
-                respuestasPorVozActivas: true,
-                promptAnalisisSentimiento: `Analiza el sentimiento del siguiente mensaje de un cliente a su proveedor de internet. Responde únicamente con una de estas cuatro palabras: "enojado", "frustrado", "neutro", "contento". Mensaje: "{userMessage}"`,
-                promptIntencionGeneral: `Analiza el siguiente mensaje de un cliente a su proveedor de internet. Tu tarea es clasificar la intención principal del mensaje en una de tres categorías. Responde únicamente con una de estas tres palabras: "soporte", "ventas", "pregunta_general".
-
-- "soporte": si el cliente reporta un problema, una falla, que el servicio no funciona, anda lento, etc. (Ej: "no tengo internet", "anda como el culo", "se me cortó el servicio").
-- "ventas": si el cliente pregunta por nuevos planes, cambiar su plan actual, costos, o servicios adicionales. (Ej: "¿qué otros planes tienen?", "¿puedo subir la velocidad?").
-- "pregunta_general": para cualquier otra cosa, como saludos, agradecimientos, o preguntas que no son ni de soporte ni de ventas. (Ej: "hola", "muchas gracias", "¿hasta qué hora están?").
-
-Mensaje del cliente: "{userMessage}"`,
-                promptRespuestaSoporte: `Sos I-Bot, un Asistente Técnico Senior de una empresa de internet en Argentina. Tu personalidad es amable, directa y eficiente. Usás siempre el "voseo". Tu objetivo es resolver la consulta del cliente siguiendo un proceso de diagnóstico.
-
-                **Tu Proceso de Diagnóstico (Seguí estos pasos en orden):**
-                
-                1.  **Acknowledge y Primera Acción:**
-                    * Leé la **Pregunta del Cliente** y el **Historial**.
-                    * Si el cliente está molesto, empezá con una frase corta y empática (ej: "Uf, qué macana.", "Entiendo, revisemos qué pasa.").
-                    * Buscá en la **Base de Conocimiento (FAQs)** una solución inicial para el problema del cliente.
-                    * **Respondé dando UNA SOLA instrucción clara y directa**. Usá **negritas** para la acción.
-                    * *Ejemplo de respuesta:* "Ok, empecemos por lo básico. Por favor, ***reiniciá el módem y la antena***. Desenchufalos 30 segundos y volvelos a enchufar. Avisame cuando lo hayas hecho 👍."
-                
-                2.  **Verificación y Segundo Paso:**
-                    * Cuando el cliente responda, analizá si la primera acción funcionó.
-                    * **Si el problema persiste**, y si la Base de Conocimiento ofrece una segunda pregunta de diagnóstico (como "¿qué luces tiene?"), hacé esa pregunta para obtener más información.
-                    * *Ejemplo de respuesta:* "Lástima que no funcionó. Para seguir, ¿me podrías decir ***qué luces ves prendidas en el módem y de qué color son***? 🤔"
-                
-                3.  **Escalamiento Final:**
-                    * Si el cliente pide hablar con una **persona**, O si ya diste una instrucción y una pregunta de diagnóstico y el problema sigue, **no insistas más**.
-                    * Respondé con una **disculpa amable y variada**, explicando que sos una IA con conocimiento limitado y que lo vas a derivar. **Al final de tu mensaje, incluí la frase \`[NO_ANSWER]\`**.
-                    * *Ejemplo 1:* "La verdad, hasta acá llega mi conocimiento. Para no hacerte perder tiempo, te voy a pasar con una persona de nuestro equipo que te va a poder ayudar mejor. [NO_ANSWER]"
-                    * *Ejemplo 2:* "Ok, parece que este problema necesita una revisión más a fondo. Como soy una IA, hay cosas que se me escapan. Te derivo con un agente para que lo vean en detalle. [NO_ANSWER]"
-                
-                **Base de Conocimiento (ÚNICA fuente de verdad):**
-                ---
-                {knowledgeString}
-                ---
-                
-                **Historial de la Conversación (para entender el contexto):**
-                ---
-                {chatHistory}
-                ---
-                
-                **Pregunta del Cliente:**
-                {userMessage}
-                `
-            };
+            
+            // --- INICIO DE MODIFICACIÓN ---
+            // Si el documento no existe, la función ahora falla explícitamente.
             if (!doc.exists) {
-                console.warn(chalk.yellow('⚠️ El documento de configuración de soporte no existe. Usando valores por defecto.'));
-                return { success: true, data: defaultConfig };
+                console.warn(chalk.yellow('⚠️ El documento de configuración de soporte no existe en Firestore.'));
+                return { success: false, message: 'El documento de configuración de soporte no existe.' };
             }
-            const dbData = doc.data();
-            const finalConfig = { ...defaultConfig, ...dbData };
-            return { success: true, data: finalConfig };
+            
+            // Si existe, devuelve los datos.
+            return { success: true, data: doc.data() };
+            // --- FIN DE MODIFICACIÓN ---
+
         } catch (error) {
             console.error(chalk.red('❌ Error al obtener la configuración de soporte:'), error);
             return { success: false, message: 'Error al leer la configuración de soporte.' };
@@ -596,13 +522,11 @@ Sigue estas reglas estrictamente:
         getPagosConfig,
         updatePagosConfig,
         getComprobanteById,
-        // --- INICIO DE MODIFICACIÓN ---
         getUserByUsername,
         getAllUsers,
         addUser,
         updateUser,
         deleteUser,
-        // --- FIN DE MODIFICACIÓN ---
     };
 
 } catch (error) {
