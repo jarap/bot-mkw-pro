@@ -25,13 +25,102 @@ try {
     const soporteFaqsCollection = db.collection('soporteFAQ');
     const menuItemsCollection = db.collection('menuItems');
     const comprobantesCollection = db.collection('comprobantesRecibidos');
+    // --- INICIO DE MODIFICACIÓN ---
+    const usersCollection = db.collection('users');
+    // --- FIN DE MODIFICACIÓN ---
 
-    // --- INICIO DE MODIFICACIÓN: Nueva función auxiliar ---
+    // --- INICIO DE MODIFICACIÓN: Funciones para la gestión de usuarios en Firestore ---
+
     /**
-     * Obtiene un único documento de comprobante por su ID.
-     * @param {string} comprobanteId - El ID del documento en Firestore.
-     * @returns {Promise<object|null>} El objeto del comprobante o null si no se encuentra.
+     * Obtiene un usuario por su nombre de usuario (que es el ID del documento).
+     * @param {string} username - El nombre de usuario a buscar.
+     * @returns {Promise<object|null>} El objeto del usuario o null si no se encuentra.
      */
+    async function getUserByUsername(username) {
+        try {
+            const docRef = usersCollection.doc(username);
+            const docSnap = await docRef.get();
+            if (docSnap.exists) {
+                return { id: docSnap.id, ...docSnap.data() };
+            }
+            return null;
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al obtener el usuario ${username}:`), error);
+            return null;
+        }
+    }
+
+    /**
+     * Obtiene todos los usuarios de la colección.
+     * @returns {Promise<{success: boolean, data?: object, message?: string}>}
+     */
+    async function getAllUsers() {
+        try {
+            const snapshot = await usersCollection.get();
+            if (snapshot.empty) {
+                return { success: true, data: {} };
+            }
+            const users = {};
+            snapshot.forEach(doc => {
+                users[doc.id] = doc.data();
+            });
+            return { success: true, data: users };
+        } catch (error) {
+            console.error(chalk.red('❌ Error al obtener todos los usuarios:'), error);
+            return { success: false, message: 'No se pudieron obtener los usuarios.' };
+        }
+    }
+
+    /**
+     * Añade un nuevo usuario. El ID del documento será el nombre de usuario.
+     * @param {string} username - El nombre de usuario.
+     * @param {object} userData - Los datos del usuario (password, role).
+     * @returns {Promise<{success: boolean, message?: string}>}
+     */
+    async function addUser(username, userData) {
+        try {
+            await usersCollection.doc(username).set(userData);
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al añadir el usuario ${username}:`), error);
+            return { success: false, message: error.message };
+        }
+    }
+
+    /**
+     * Actualiza los datos de un usuario.
+     * @param {string} username - El nombre de usuario a actualizar.
+     * @param {object} userData - Los nuevos datos para el usuario.
+     * @returns {Promise<{success: boolean, message?: string}>}
+     */
+    async function updateUser(username, userData) {
+        try {
+            await usersCollection.doc(username).update(userData);
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al actualizar el usuario ${username}:`), error);
+            return { success: false, message: error.message };
+        }
+    }
+
+    /**
+     * Elimina un usuario por su nombre de usuario.
+     * @param {string} username - El nombre de usuario a eliminar.
+     * @returns {Promise<{success: boolean, message?: string}>}
+     */
+    async function deleteUser(username) {
+        try {
+            await usersCollection.doc(username).delete();
+            return { success: true };
+        } catch (error) {
+            console.error(chalk.red(`❌ Error al eliminar el usuario ${username}:`), error);
+            return { success: false, message: error.message };
+        }
+    }
+
+    // --- FIN DE MODIFICACIÓN ---
+
+
     async function getComprobanteById(comprobanteId) {
         try {
             const docRef = comprobantesCollection.doc(comprobanteId);
@@ -46,8 +135,7 @@ try {
             return null;
         }
     }
-    // --- FIN DE MODIFICACIÓN ---
-
+    
     async function getMenuItemById(itemId) {
         try {
             const docRef = menuItemsCollection.doc(itemId);
@@ -507,7 +595,14 @@ Sigue estas reglas estrictamente:
         updateComprobante,
         getPagosConfig,
         updatePagosConfig,
-        getComprobanteById, // Exportamos la nueva función
+        getComprobanteById,
+        // --- INICIO DE MODIFICACIÓN ---
+        getUserByUsername,
+        getAllUsers,
+        addUser,
+        updateUser,
+        deleteUser,
+        // --- FIN DE MODIFICACIÓN ---
     };
 
 } catch (error) {

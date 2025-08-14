@@ -3,7 +3,7 @@ const express = require('express');
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs'); // <-- INICIO DE CORRECCIÓN: Se vuelve a añadir el módulo 'fs'
 const { WebSocketServer } = require('ws');
 const qrcode = require('qrcode');
 const chalk = require('chalk');
@@ -33,7 +33,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
     app.use(bodyParser.urlencoded({ extended: true }));
     app.use(bodyParser.json());
 
-    // --- Middlewares de Autenticación y Autorización ---
     const checkAuth = (req, res, next) => req.session.loggedin ? next() : res.redirect('/');
 
     const checkRole = (allowedRoles) => {
@@ -50,7 +49,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         };
     };
 
-    // --- Rutas de Vistas y Autenticación ---
     app.get('/', (req, res) => {
         if (req.session.loggedin) {
             res.sendFile(path.join(__dirname, '..', 'public', 'mkwap.html'));
@@ -59,19 +57,26 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         }
     });
 
-    app.post('/login', (req, res) => {
+    app.post('/login', async (req, res) => {
         const { username, password } = req.body;
-        const usersFilePath = path.join(__dirname, '..', 'users.json');
-        const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-        const user = users[username];
+        if (!username || !password) {
+            return res.status(400).send('Usuario y contraseña son requeridos.');
+        }
 
-        if (user && user.password === password) {
-            req.session.loggedin = true;
-            req.session.username = username;
-            req.session.role = user.role;
-            res.redirect('/');
-        } else {
-            res.status(401).send('Usuario o contraseña incorrectos');
+        try {
+            const user = await firestoreHandler.getUserByUsername(username);
+
+            if (user && user.password === password) {
+                req.session.loggedin = true;
+                req.session.username = username;
+                req.session.role = user.role;
+                res.redirect('/');
+            } else {
+                res.status(401).send('Usuario o contraseña incorrectos');
+            }
+        } catch (error) {
+            console.error(chalk.red('❌ Error durante el login:'), error);
+            res.status(500).send('Error interno del servidor durante la autenticación.');
         }
     });
 
@@ -81,9 +86,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         });
     });
 
-    // --- API Endpoints ---
-
-    // Endpoint de sesión de usuario
     app.get('/api/user/session', (req, res) => {
         if (req.session.loggedin) {
             res.json({ success: true, data: { username: req.session.username, role: req.session.role } });
@@ -92,7 +94,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         }
     });
 
-    // Rutas de lectura (Operador, Supervisor, Admin)
     const readRoles = ['admin', 'supervisor', 'operator'];
     app.get('/api/tickets', checkRole(readRoles), async (req, res) => {
         const result = await firestoreHandler.getAllTickets();
@@ -126,7 +127,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // Rutas de acción (Supervisor, Admin)
     const actionRoles = ['admin', 'supervisor'];
     app.get('/api/salesdata', checkRole(actionRoles), async (req, res) => {
         const result = await firestoreHandler.getSalesData();
@@ -161,7 +161,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
     });
 
     app.post('/api/comprobantes/:id/asignar', checkRole(actionRoles), async (req, res) => {
-        // ... (la lógica interna de la función no cambia)
         try {
             const comprobanteId = req.params.id;
             const doc = await firestoreHandler.db.collection('comprobantesRecibidos').doc(comprobanteId).get();
@@ -190,7 +189,6 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // Rutas de configuración y gestión (Admin)
     const adminOnly = ['admin'];
     app.post('/api/data/:collection', checkRole(adminOnly), async (req, res) => {
         const result = await firestoreHandler.addItem(req.params.collection, req.body);
@@ -273,66 +271,51 @@ function createWebPanel(app, server, whatsappClient, firestoreHandler, redisClie
         res.status(result.success ? 200 : 500).json(result);
     });
 
-    // --- Gestión de Usuarios (Admin) ---
-    const usersFilePath = path.join(__dirname, '..', 'users.json');
-
-    app.get('/api/users', checkRole(adminOnly), (req, res) => {
-        try {
-            const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-            const safeUsers = Object.keys(users).reduce((acc, username) => {
-                acc[username] = { role: users[username].role };
-                return acc;
-            }, {});
-            res.json({ success: true, data: safeUsers });
-        } catch (error) {
-            res.status(500).json({ success: false, message: 'Error al leer archivo de usuarios.' });
+    app.get('/api/users', checkRole(adminOnly), async (req, res) => {
+        const result = await firestoreHandler.getAllUsers();
+        if (result.success && result.data) {
+            Object.keys(result.data).forEach(username => {
+                delete result.data[username].password;
+            });
         }
+        res.status(result.success ? 200 : 500).json(result);
     });
 
-    app.post('/api/users', checkRole(adminOnly), (req, res) => {
-        try {
-            const { username, password, role } = req.body;
-            if (!username || !password || !role) return res.status(400).json({ success: false, message: 'Datos incompletos.' });
-            const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-            if (users[username]) return res.status(409).json({ success: false, message: 'El nombre de usuario ya existe.' });
-            users[username] = { password, role };
-            fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
-            res.status(201).json({ success: true, message: 'Usuario creado exitosamente.' });
-        } catch (error) {
-            res.status(500).json({ success: false, message: 'Error al crear el usuario.' });
+    app.post('/api/users', checkRole(adminOnly), async (req, res) => {
+        const { username, password, role } = req.body;
+        if (!username || !password || !role) {
+            return res.status(400).json({ success: false, message: 'Datos incompletos.' });
         }
+        const existingUser = await firestoreHandler.getUserByUsername(username);
+        if (existingUser) {
+            return res.status(409).json({ success: false, message: 'El nombre de usuario ya existe.' });
+        }
+        const result = await firestoreHandler.addUser(username, { password, role });
+        res.status(result.success ? 201 : 500).json(result);
     });
 
-    app.put('/api/users/:username', checkRole(adminOnly), (req, res) => {
-        try {
-            const { username } = req.params;
-            const { password, role } = req.body;
-            const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-            if (!users[username]) return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
-            if (password) users[username].password = password;
-            if (role) users[username].role = role;
-            fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
-            res.json({ success: true, message: 'Usuario actualizado exitosamente.' });
-        } catch (error) {
-            res.status(500).json({ success: false, message: 'Error al actualizar el usuario.' });
+    app.put('/api/users/:username', checkRole(adminOnly), async (req, res) => {
+        const { username } = req.params;
+        const { password, role } = req.body;
+        
+        const userData = {};
+        if (password) userData.password = password;
+        if (role) userData.role = role;
+
+        if (Object.keys(userData).length === 0) {
+            return res.status(400).json({ success: false, message: 'No hay datos para actualizar.' });
         }
+
+        const result = await firestoreHandler.updateUser(username, userData);
+        res.status(result.success ? 200 : 500).json(result);
     });
 
-    app.delete('/api/users/:username', checkRole(adminOnly), (req, res) => {
-        try {
-            const { username } = req.params;
-            const users = JSON.parse(fs.readFileSync(usersFilePath, 'utf8'));
-            if (!users[username]) return res.status(404).json({ success: false, message: 'Usuario no encontrado.' });
-            delete users[username];
-            fs.writeFileSync(usersFilePath, JSON.stringify(users, null, 2));
-            res.json({ success: true, message: 'Usuario eliminado exitosamente.' });
-        } catch (error) {
-            res.status(500).json({ success: false, message: 'Error al eliminar el usuario.' });
-        }
+    app.delete('/api/users/:username', checkRole(adminOnly), async (req, res) => {
+        const { username } = req.params;
+        const result = await firestoreHandler.deleteUser(username);
+        res.status(result.success ? 200 : 500).json(result);
     });
 
-
-    // --- WebSocket Server ---
     const wssClients = new Set();
     wss.on('connection', async (ws) => {
         wssClients.add(ws);
