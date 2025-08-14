@@ -863,3 +863,32 @@ body.login-page {
     height: auto;     /* Mantiene la proporción */
 }
 /* --- FIN DE CORRECCIÓN --- */
+
+/* --- INICIO DE CORRECCIÓN: Estilos para Filtros de Tickets --- */
+.filter-controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.filter-btn {
+    background-color: var(--color-light);
+    color: var(--color-dark-variant);
+    padding: 0.5rem 1rem;
+    border-radius: var(--border-radius-1);
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.8rem;
+    transition: all 300ms ease;
+}
+
+.filter-btn:hover {
+    background-color: var(--color-info-light);
+    color: var(--color-dark);
+}
+
+.filter-btn.active {
+    background-color: var(--color-primary);
+    color: var(--color-white);
+}
+/* --- FIN DE CORRECCIÓN --- */
