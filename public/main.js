@@ -7,12 +7,13 @@ import * as ui from './ui.js';
 import * as render from './render.js';
 import * as modals from './modals.js';
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     console.log('[PUNTO DE CONTROL] DOM cargado. Iniciando main.js...');
 
     let state = {
+        currentUser: null, // Almacenará el usuario y su rol
         tickets: [],
-        receipts: [], // --- INICIO DE NUEVA FUNCIONALIDAD ---
+        receipts: [],
         salesData: { planes: [], promociones: [], preguntasFrecuentes: [], zonasCobertura: { id: null, listado: [] }, soporteFaqs: [] },
         companyConfig: {},
         ventasConfig: {},
@@ -26,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const dom = {
         ticketsTableBody: document.getElementById('tickets-table-body'),
-        receiptsTableBody: document.getElementById('receipts-table-body'), // --- INICIO DE NUEVA FUNCIONALIDAD ---
+        receiptsTableBody: document.getElementById('receipts-table-body'),
         sessionsTableBody: document.getElementById('sessions-table-body'),
         planesTableBody: document.getElementById('planes-table-body'),
         promosTableBody: document.getElementById('promos-table-body'),
@@ -51,6 +52,29 @@ document.addEventListener('DOMContentLoaded', () => {
         visitsFilterButtons: document.getElementById('visits-filter-buttons'),
     };
 
+    async function initializeSessionAndPermissions() {
+        try {
+            const response = await fetch('/api/user/session');
+            if (!response.ok) {
+                // Si la sesión no es válida, el backend redirigirá o ya lo hizo.
+                // No continuamos con la carga de la app.
+                console.error('Sesión no válida o expirada.');
+                return false;
+            }
+            const result = await response.json();
+            if (result.success) {
+                state.currentUser = result.data;
+                ui.applyRolePermissions(state.currentUser.role);
+                return true;
+            }
+        } catch (error) {
+            console.error("Error crítico al obtener la sesión del usuario:", error);
+            // Podríamos mostrar un mensaje de error en toda la pantalla aquí.
+            return false;
+        }
+        return false;
+    }
+
     async function loadInitialData() {
         try {
             const ticketsData = await api.getTickets();
@@ -70,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     async function forceReloadSalesData() {
+        if (state.currentUser.role === 'operator') return; // Protección adicional
         try {
             const data = await api.getSalesData();
             state.salesData = data;
@@ -86,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadAndRenderCompanyConfig() {
+        if (state.currentUser.role !== 'admin') return;
         try {
             const configData = await api.getCompanyConfig();
             state.companyConfig = configData;
@@ -96,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadAndRenderVentasConfig() {
+        if (state.currentUser.role !== 'admin') return;
         try {
             const configData = await api.getVentasConfig();
             state.ventasConfig = configData;
@@ -106,6 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadAndRenderSoporteConfig() {
+        if (state.currentUser.role !== 'admin') return;
         try {
             const configData = await api.getSoporteConfig();
             state.soporteConfig = configData;
@@ -116,6 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadAndRenderPagosConfig() {
+        if (state.currentUser.role !== 'admin') return;
         try {
             const configData = await api.getPagosConfig();
             state.pagosConfig = configData;
@@ -144,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadAndRenderMenuEditor() {
-        if (!dom.menuEditorContainer) return;
+        if (!dom.menuEditorContainer || state.currentUser.role !== 'admin') return;
         try {
             const menuItems = await api.getAllMenuItems();
             state.menuItems = menuItems;
@@ -154,7 +183,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // --- INICIO DE NUEVA FUNCIONALIDAD ---
     async function loadAndRenderReceipts() {
         try {
             const receiptsData = await api.getComprobantes();
@@ -167,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    // --- FIN DE NUEVA FUNCIONALIDAD ---
 
     function initializeWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -206,11 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'ticketsChanged':
                     loadInitialData();
                     break;
-                // --- INICIO DE NUEVA FUNCIONALIDAD ---
                 case 'receiptsChanged':
                     loadAndRenderReceipts();
                     break;
-                // --- FIN DE NUEVA FUNCIONALIDAD ---
             }
         };
         ws.onclose = () => {
@@ -231,9 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function updateScheduledVisits(days = 15) {
         if (!dom.scheduledVisitsValue) return;
-        
         dom.scheduledVisitsValue.textContent = '...'; 
-
         try {
             const result = await api.getCalendarEventsCount(days);
             dom.scheduledVisitsValue.textContent = result.count;
@@ -248,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const navigationCallbacks = {
             'history': renderCurrentTickets,
-            'receipt-history': loadAndRenderReceipts, // --- INICIO DE NUEVA FUNCIONALIDAD ---
+            'receipt-history': loadAndRenderReceipts,
             'calendar': loadAndRenderCalendar,
             'ajustes-empresa': loadAndRenderCompanyConfig,
             'ajustes-bot-venta': loadAndRenderVentasConfig,
@@ -274,7 +297,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // --- INICIO DE NUEVA FUNCIONALIDAD ---
             const viewReceiptBtn = e.target.closest('.view-receipt-btn');
             if (viewReceiptBtn) {
                 const receiptId = viewReceiptBtn.dataset.receiptId;
@@ -282,7 +304,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (receiptData) modals.showReceiptModal(receiptData);
                 return;
             }
-            // --- FIN DE NUEVA FUNCIONALIDAD ---
 
             const editBtn = e.target.closest('.edit-btn');
             if (editBtn) {
@@ -450,10 +471,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const formData = new FormData(dom.pagosConfigForm);
             const newConfigData = {};
             newConfigData.pagosQrActivos = formData.has('pagosQrActivos');
-            // --- INICIO DE NUEVA FUNCIONALIDAD ---
             newConfigData.umbralFiabilidad = parseInt(formData.get('umbralFiabilidad'), 10) || 95;
             newConfigData.promptAnalisisComprobante = formData.get('promptAnalisisComprobante');
-            // --- FIN DE NUEVA FUNCIONALIDAD ---
 
             try {
                 await api.savePagosConfig(newConfigData);
@@ -529,8 +548,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    initializeWebSocket();
-    initializeEventListeners();
-
-    updateScheduledVisits(15);
+    // --- Inicialización Principal ---
+    const sessionIsValid = await initializeSessionAndPermissions();
+    if (sessionIsValid) {
+        initializeWebSocket();
+        initializeEventListeners();
+        updateScheduledVisits(15);
+    }
 });

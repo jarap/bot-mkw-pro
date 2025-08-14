@@ -1,4 +1,14 @@
-
 {
-  "admin": "admin"
+  "admin": {
+    "password": "admin_password",
+    "role": "admin"
+  },
+  "supervisor_juan": {
+    "password": "supervisor_password",
+    "role": "supervisor"
+  },
+  "operador_ana": {
+    "password": "operador_password",
+    "role": "operator"
+  }
 }
